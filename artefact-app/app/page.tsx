@@ -16,25 +16,34 @@ const GoogleIcon = () => (
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("dashboard");
 
   useEffect(() => {
-    const getUser = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
 
-      setUser(user);
+    const getInitialSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setUser(session?.user ?? null);
       setIsLoading(false);
     };
 
-    getUser();
+    getInitialSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const handleLogin = async () => {
-    await supabase.auth.signInWithOAuth({
-      provider: "google",
-    });
-  };
+  await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}/auth/confirm`,
+    },
+  });
+};
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -42,78 +51,91 @@ export default function Home() {
   };
 
   if (isLoading) {
-    return <main className="min-h-screen bg-white flex items-center justify-center"></main>;
+    return (
+      <main className="min-h-screen bg-white flex flex-col items-center justify-center antialiased">
+        <div className="w-10 h-10 border-4 border-slate-100 border-t-[#9A0458] rounded-full animate-spin mb-2"></div>
+        <p className="text-slate-400 text-xs font-medium">Carregando laboratório...</p>
+      </main>
+    );
   }
+
+
+  if (user) {
+    return (
+      <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row antialiased font-sans">
+        <aside className="w-full md:w-64 bg-white border-r border-slate-100 flex flex-col justify-between p-6 shrink-0">
+          <div>
+            <div className="mb-8">
+              <h2 className="text-xl font-bold text-[#9A0458] tracking-tight">EchoGarden</h2>
+              <span className="text-[11px] font-medium text-slate-400 block -mt-0.5">Empathetic Forensics</span>
+            </div>
+            <nav className="space-y-1">
+              {[
+                { id: "dashboard", label: "Dashboard", icon: "📊" },
+                { id: "garden", label: "My Garden", icon: "🌱" },
+                { id: "discover", label: "Discover", icon: "🧭" },
+                { id: "settings", label: "Settings", icon: "⚙️" },
+              ].map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => setActiveTab(item.id)}
+                  className={`w-full flex items-center px-4 py-3 rounded-xl font-medium text-sm transition-all duration-150 ${
+                    activeTab === item.id ? "bg-[#9A0458] text-white shadow-sm" : "text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  <span className="mr-3 text-base">{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+          <div className="pt-6 border-t border-slate-100 space-y-2">
+            <div className="text-xs text-slate-400 truncate px-2">👤 {user.email}</div>
+            <button onClick={handleLogout} className="w-full text-left px-4 py-2.5 text-sm text-slate-500 hover:text-red-600 font-medium cursor-pointer">
+              🚪 Log Out
+            </button>
+          </div>
+        </aside>
+
+        <main className="flex-1 p-6 md:p-10 max-w-7xl mx-auto w-full">
+          <header className="mb-8">
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Good morning, {user.email?.split("@")[0]}</h1>
+          </header>
+          <section className="bg-white border-2 border-dashed border-[#9A0458]/30 rounded-3xl p-12 text-center">
+            <h3 className="text-xl font-bold text-[#9A0458] mb-2">Drop a design to start a forensic search</h3>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
 
   return (
     <main className="min-h-screen bg-white flex flex-col md:flex-row antialiased overflow-hidden">
-      
       <div 
         className="w-full md:w-1/2 p-12 md:p-24 flex flex-col justify-end relative min-h-[45vh] md:min-h-screen bg-cover bg-center rounded-none md:rounded-r-[24px]"
-        style={{ 
-          backgroundImage: `url('/EchoGarden.png')` 
-        }}
+        style={{ backgroundImage: `url('/EchoGarden.png')` }}
       >
-
-        <div className="relative z-10 text-white select-none">
-          <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-2 drop-shadow-sm">
-            EchoGarden
-          </h1>
-          <p className="text-white/90 text-sm md:text-lg font-medium tracking-wide drop-shadow-sm">
-            Empathetic Forensics & Design Analysis
-          </p>
+        <div className="relative z-10 text-white select-none hidden md:block">
+          <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-2 drop-shadow-sm">EchoGarden</h1>
+          <p className="text-white/90 text-sm md:text-lg font-medium tracking-wide">Empathetic Forensics & Design Analysis</p>
         </div>
       </div>
 
       <div className="w-full md:w-1/2 p-8 md:p-16 flex flex-col items-center justify-center bg-white rounded-none md:rounded-l-[24px]">
         <div className="w-full max-w-sm text-center">
-          
-          <h2 className="text-4xl font-bold text-black tracking-tight mb-3">
-            {user ? "Sua Conta" : "Entrar"}
-          </h2>
-          
-          <p className="text-slate-600 text-sm md:text-base font-normal leading-relaxed mb-8 max-w-[280px] mx-auto">
-            {user 
-              ? "Você está autenticado no ecossistema forense." 
-              : "Acesse sua conta para iniciar uma busca forense visual"
-            }
-          </p>
+          <h2 className="text-4xl font-bold text-black tracking-tight mb-3">Entrar</h2>
+          <p className="text-slate-600 text-sm mb-8 max-w-[280px] mx-auto">Acesse sua conta para iniciar uma busca forense visual</p>
 
-          {user ? (
-            <div className="flex flex-col gap-4 w-full">
-              <div className="bg-slate-50 border border-slate-200 rounded-2xl px-5 py-4 text-left">
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-0.5">
-                  Usuário Ativo
-                </span>
-                <span className="text-slate-800 font-semibold text-sm truncate block">
-                  {user.email}
-                </span>
-              </div>
-
-              <button
-                onClick={handleLogout}
-                className="w-full bg-slate-900 hover:bg-black text-white font-medium py-3.5 px-5 rounded-xl transition-all duration-200 active:scale-[0.99] text-sm cursor-pointer shadow-sm"
-              >
-                Sair do sistema
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={handleLogin}
-              className="w-full flex items-center justify-center bg-white hover:bg-slate-50 text-slate-800 font-medium py-3.5 px-5 border border-slate-200 rounded-xl transition-all duration-200 active:scale-[0.99] shadow-sm hover:shadow-md text-sm cursor-pointer"
-            >
-              <GoogleIcon />
-              Entrar com o Google
-            </button>
-          )}
-
-          <div className="mt-10 text-[11px] text-slate-400 font-normal tracking-wide">
-            Protegido por criptografia ponta a ponta via Supabase.
-          </div>
-
+          <button
+            onClick={handleLogin}
+            className="w-full flex items-center justify-center bg-white hover:bg-slate-50 text-slate-800 font-medium py-3.5 px-5 border border-slate-200 rounded-xl transition-all duration-200 active:scale-[0.99] shadow-sm text-sm cursor-pointer"
+          >
+            <GoogleIcon />
+            Entrar com o Google
+          </button>
         </div>
       </div>
-
     </main>
   );
 }
