@@ -186,43 +186,172 @@ function MatchCardComponent({ card }: { card: MatchCard }) {
   );
 }
 
-function DropZone({ onFileSelected }: { onFileSelected?: () => void }) {
+type UploadStatus = "idle" | "uploading" | "success" | "error";
+
+function DropZone({ userId, onUploadComplete }: {
+  userId: string;
+  onUploadComplete?: (designId: string, previewUrl: string) => void;
+}) {
   const [isDragging, setIsDragging] = useState(false);
+  const [status, setStatus] = useState<UploadStatus>("idle");
+  const [errorMsg, setErrorMsg] = useState("");
+  const [preview, setPreview] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (file: File) => {
+    if (!file.type.startsWith("image/")) {
+      setErrorMsg("Only image files are supported (PNG, JPG, WebP).");
+      setStatus("error");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMsg("File too large. Maximum size is 10MB.");
+      setStatus("error");
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setPreview(objectUrl);
+    setStatus("uploading");
+    setErrorMsg("");
+
+    try {
+      const ext = file.name.split(".").pop();
+      const fileName = `${Date.now()}.${ext}`;
+      const storagePath = `${userId}/${fileName}`;
+
+      const { error: storageError } = await supabase.storage
+        .from("designs")
+        .upload(storagePath, file, { upsert: false });
+
+      if (storageError) throw storageError;
+
+      const { data: urlData } = await supabase.storage
+        .from("designs")
+        .createSignedUrl(storagePath, 60 * 60);
+
+      const publicUrl = urlData?.signedUrl ?? "";
+
+      const { data: record, error: dbError } = await supabase
+        .from("designs")
+        .insert({
+          user_id: userId,
+          file_name: file.name,
+          storage_path: storagePath,
+          public_url: publicUrl,
+        })
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      setStatus("success");
+      onUploadComplete?.(record.id, objectUrl);
+    } catch (err: unknown) {
+      console.error(err);
+      setErrorMsg(err instanceof Error ? err.message : "Upload failed. Please try again.");
+      setStatus("error");
+      setPreview(null);
+    }
+  };
+
+  const reset = () => {
+    setStatus("idle");
+    setPreview(null);
+    setErrorMsg("");
+    if (inputRef.current) inputRef.current.value = "";
+  };
 
   return (
     <div
-      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+      onDragOver={(e) => { e.preventDefault(); if (status === "idle" || status === "error") setIsDragging(true); }}
       onDragLeave={() => setIsDragging(false)}
-      onDrop={(e) => { e.preventDefault(); setIsDragging(false); if (e.dataTransfer.files.length) onFileSelected?.(); }}
-      onClick={() => inputRef.current?.click()}
-      className={`rounded-3xl border-2 border-dashed p-10 md:p-14 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 ${
-        isDragging
-          ? "border-[#9A0458] bg-[#9A0458]/5"
-          : "border-[#9A0458]/25 bg-white hover:border-[#9A0458]/50 hover:bg-[#9A0458]/3"
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+      }}
+      onClick={() => { if (status === "idle" || status === "error") inputRef.current?.click(); }}
+      className={`rounded-3xl border-2 border-dashed p-10 md:p-14 flex flex-col items-center justify-center text-center transition-all duration-200 ${
+        status === "uploading"
+          ? "border-[#9A0458]/40 bg-[#9A0458]/3 cursor-wait"
+          : status === "success"
+          ? "border-emerald-300 bg-emerald-50 cursor-default"
+          : status === "error"
+          ? "border-red-300 bg-red-50 cursor-pointer"
+          : isDragging
+          ? "border-[#9A0458] bg-[#9A0458]/5 cursor-copy"
+          : "border-[#9A0458]/25 bg-white hover:border-[#9A0458]/50 cursor-pointer"
       }`}
     >
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files?.length) onFileSelected?.(); }} />
-      <div className="w-16 h-16 rounded-2xl bg-[#9A0458]/8 flex items-center justify-center text-[#9A0458] mb-4">
-        <UploadIcon />
-      </div>
-      <h3 className="text-lg font-bold text-[#9A0458] mb-1">Drop a design to start a forensic search</h3>
-      <p className="text-sm text-slate-400 mb-5">Supports PNG, JPG, or Figma URLs</p>
-      <div className="flex gap-2">
-        <button
-          onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
-          className="px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
-        >
-          Browse Files
-        </button>
-        <button
-          onClick={(e) => e.stopPropagation()}
-          className="px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors shadow-sm flex items-center"
-        >
-          <FigmaIcon />
-          Import from Figma
-        </button>
-      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+      />
+
+      {status === "uploading" && (
+        <>
+          {preview && <img src={preview} alt="preview" className="w-20 h-20 object-cover rounded-2xl mb-4 opacity-60" />}
+          <div className="w-8 h-8 border-4 border-slate-100 border-t-[#9A0458] rounded-full animate-spin mb-3" />
+          <p className="text-sm font-semibold text-[#9A0458]">Uploading design...</p>
+          <p className="text-xs text-slate-400 mt-1">Please wait</p>
+        </>
+      )}
+
+      {status === "success" && (
+        <>
+          {preview && (
+            <div className="relative mb-5">
+              <img src={preview} alt="preview" className="max-w-sm max-h-80 object-contain" />
+              <div className="absolute -bottom-3 -right-3 w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white text-sm shadow-md">✓</div>
+            </div>
+          )}
+          <p className="text-sm font-semibold text-emerald-700 mt-2">Design uploaded successfully</p>
+          <button onClick={(e) => { e.stopPropagation(); reset(); }} className="mt-2 text-xs text-slate-400 hover:text-slate-600 underline">
+            Upload another
+          </button>
+        </>
+      )}
+
+      {status === "error" && (
+        <>
+          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-500 text-xl mb-3">✕</div>
+          <p className="text-sm font-semibold text-red-600">Upload failed</p>
+          <p className="text-xs text-red-400 mt-1 max-w-xs">{errorMsg}</p>
+          <button onClick={(e) => { e.stopPropagation(); reset(); }} className="mt-3 text-xs text-slate-400 hover:text-slate-600 underline">
+            Try again
+          </button>
+        </>
+      )}
+
+      {status === "idle" && (
+        <>
+          <div className="w-16 h-16 rounded-2xl bg-[#9A0458]/8 flex items-center justify-center text-[#9A0458] mb-4">
+            <UploadIcon />
+          </div>
+          <h3 className="text-lg font-bold text-[#9A0458] mb-1">Drop a design to start a forensic search</h3>
+          <p className="text-sm text-slate-400 mb-5">Supports PNG, JPG, WebP · Max 10MB</p>
+          <div className="flex gap-2">
+            <button
+              onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+              className="px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+            >
+              Browse Files
+            </button>
+            <button
+              onClick={(e) => e.stopPropagation()}
+              className="px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors shadow-sm flex items-center"
+            >
+              <FigmaIcon />
+              Import from Figma
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -248,8 +377,14 @@ const navItems = [
 
 function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState("dashboard");
-  const [hasAnalysis, setHasAnalysis] = useState(false);
+  const [uploadedDesignId, setUploadedDesignId] = useState<string | null>(null);
+  const [uploadedPreview, setUploadedPreview] = useState<string | null>(null);
   const firstName = user.email?.split("@")[0] ?? "there";
+
+  const handleUploadComplete = (designId: string, previewUrl: string) => {
+    setUploadedDesignId(designId);
+    setUploadedPreview(previewUrl);
+  };
   const avatarLetter = firstName[0]?.toUpperCase();
 
   return (
@@ -338,11 +473,11 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
 
           {/* Drop zone */}
           <div className="mb-8">
-            <DropZone onFileSelected={() => setHasAnalysis(true)} />
+            <DropZone userId={user.id} onUploadComplete={handleUploadComplete} />
           </div>
 
-          {/* Gardens — only shown after an analysis is run */}
-          {hasAnalysis ? (
+          {/* Gardens — only shown after an upload */}
+          {uploadedDesignId ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Your Garden */}
               <div>
