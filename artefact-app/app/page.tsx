@@ -73,6 +73,17 @@ interface MatchCard {
   assetSource?: string;
 }
 
+interface MatchResult {
+  id: string;
+  userId: string;
+  fileName: string;
+  signedUrl: string | null;
+  similarity: number;
+  level: SimilarityLevel;
+  isOwn: boolean;
+  createdAt: string;
+}
+
 const ownGardenMocks: MatchCard[] = [
   {
     id: "og1",
@@ -198,6 +209,15 @@ function DropZone({ userId, onUploadComplete }: {
   const [preview, setPreview] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Convert file to base64 string
+  const toBase64 = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve((reader.result as string).split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   const handleFile = async (file: File) => {
     if (!file.type.startsWith("image/")) {
       setErrorMsg("Only image files are supported (PNG, JPG, WebP).");
@@ -216,6 +236,10 @@ function DropZone({ userId, onUploadComplete }: {
     setErrorMsg("");
 
     try {
+      // Convert to base64 before any async operations
+      const base64 = await toBase64(file);
+      const mimeType = file.type;
+
       const ext = file.name.split(".").pop();
       const fileName = `${Date.now()}.${ext}`;
       const storagePath = `${userId}/${fileName}`;
@@ -247,6 +271,14 @@ function DropZone({ userId, onUploadComplete }: {
 
       setStatus("success");
       onUploadComplete?.(record.id, objectUrl);
+
+      // Generate embedding after upload (non-blocking)
+      fetch("/api/embed", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ designId: record.id, imageBase64: base64, mimeType }),
+      }).catch((embedErr) => console.warn("[embed] error:", embedErr));
+
     } catch (err: unknown) {
       console.error(err);
       setErrorMsg(err instanceof Error ? err.message : "Upload failed. Please try again.");
@@ -381,9 +413,35 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [uploadedPreview, setUploadedPreview] = useState<string | null>(null);
   const firstName = user.email?.split("@")[0] ?? "there";
 
-  const handleUploadComplete = (designId: string, previewUrl: string) => {
+  const [matchResults, setMatchResults] = useState<{
+    ownGarden: MatchResult[];
+    othersGarden: MatchResult[];
+  } | null>(null);
+  const [isMatching, setIsMatching] = useState(false);
+
+  const handleUploadComplete = async (designId: string, previewUrl: string) => {
     setUploadedDesignId(designId);
     setUploadedPreview(previewUrl);
+    setMatchResults(null);
+    setIsMatching(true);
+
+    // Wait a moment for embedding to complete, then search
+    const poll = async (attempts = 0): Promise<void> => {
+      if (attempts > 12) { setIsMatching(false); return; }
+      await new Promise((r) => setTimeout(r, 3000));
+      const res = await fetch("/api/match", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ designId, userId: user.id }),
+      });
+      const data = await res.json();
+      if (data.error === "Design or embedding not found") {
+        return poll(attempts + 1);
+      }
+      setMatchResults(data);
+      setIsMatching(false);
+    };
+    poll();
   };
   const avatarLetter = firstName[0]?.toUpperCase();
 
@@ -478,41 +536,100 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
 
           {/* Gardens — only shown after an upload */}
           {uploadedDesignId ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Your Garden */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🌱</span>
-                    <h2 className="text-sm font-bold text-slate-800">Your Garden</h2>
+            isMatching ? (
+              <div className="text-center py-16 select-none">
+                <div className="w-8 h-8 border-4 border-slate-100 border-t-[#9A0458] rounded-full animate-spin mx-auto mb-4" />
+                <p className="text-sm font-medium text-slate-500">Searching for visual echoes...</p>
+                <p className="text-xs text-slate-300 mt-1">Comparing embeddings across the garden</p>
+              </div>
+            ) : matchResults ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🌱</span>
+                      <h2 className="text-sm font-bold text-slate-800">Your Garden</h2>
+                    </div>
+                    <span className="text-xs text-slate-400">{matchResults.ownGarden.length} matches</span>
                   </div>
-                  <button className="text-xs font-semibold text-[#9A0458] hover:underline">View all</button>
+                  {matchResults.ownGarden.length === 0 ? (
+                    <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center">
+                      <p className="text-sm text-slate-400">No echoes found in your own history.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {matchResults.ownGarden.map((m) => (
+                        <div key={m.id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                          <div className="flex items-center gap-3 p-3">
+                            {m.signedUrl ? (
+                              <img src={m.signedUrl} alt={m.fileName} className="w-16 h-16 object-cover rounded-xl flex-shrink-0" />
+                            ) : (
+                              <div className="w-16 h-16 rounded-xl bg-slate-100 flex-shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[13px] font-semibold text-slate-800 leading-tight truncate">{m.fileName}</p>
+                              <p className="text-[11px] text-slate-400 mt-0.5">{new Date(m.createdAt).toLocaleDateString()}</p>
+                              <span className={`inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${levelColors[m.level]}`}>
+                                {m.level}
+                              </span>
+                            </div>
+                            <span className={`text-xs font-bold px-2.5 py-1.5 rounded-full flex-shrink-0 ${scoreColor(m.similarity)}`}>
+                              {m.similarity}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="space-y-3">
-                  {ownGardenMocks.map((card) => (
-                    <MatchCardComponent key={card.id} card={card} />
-                  ))}
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">🧭</span>
+                      <h2 className="text-sm font-bold text-slate-800">Others&apos; Garden</h2>
+                    </div>
+                    <span className="text-xs text-slate-400">{matchResults.othersGarden.length} matches</span>
+                  </div>
+                  {matchResults.othersGarden.length === 0 ? (
+                    <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center">
+                      <p className="text-sm text-slate-400">No echoes found in the community yet.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {matchResults.othersGarden.map((m) => (
+                        <div key={m.id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                          <div className="flex items-center gap-3 p-3">
+                            {m.signedUrl ? (
+                              <img src={m.signedUrl} alt={m.fileName} className="w-16 h-16 object-cover rounded-xl flex-shrink-0" />
+                            ) : (
+                              <div className="w-16 h-16 rounded-xl bg-slate-100 flex-shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[13px] font-semibold text-slate-800 leading-tight truncate">{m.fileName}</p>
+                              <p className="text-[11px] text-slate-400 mt-0.5">{new Date(m.createdAt).toLocaleDateString()}</p>
+                              <span className={`inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${levelColors[m.level]}`}>
+                                {m.level}
+                              </span>
+                            </div>
+                            <span className={`text-xs font-bold px-2.5 py-1.5 rounded-full flex-shrink-0 ${scoreColor(m.similarity)}`}>
+                              {m.similarity}%
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
-
-              {/* Others' Garden */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-base">🧭</span>
-                    <h2 className="text-sm font-bold text-slate-800">Others&apos; Garden</h2>
-                  </div>
-                  <button className="text-xs font-semibold text-[#9A0458] hover:underline">Explore Community</button>
-                </div>
-                <div className="space-y-3">
-                  {othersGardenMocks.map((card) => (
-                    <MatchCardComponent key={card.id} card={card} />
-                  ))}
-                </div>
+            ) : (
+              <div className="text-center py-16 select-none">
+                <div className="text-5xl mb-3">🌿</div>
+                <p className="text-sm font-medium text-slate-400">No matches found.</p>
+                <p className="text-xs text-slate-300 mt-1">Upload more designs to grow your garden.</p>
               </div>
-            </div>
+            )
           ) : (
-            <div className="text-center py-16 text-slate-300 select-none">
+            <div className="text-center py-16 select-none">
               <div className="text-5xl mb-3">🌿</div>
               <p className="text-sm font-medium text-slate-400">Your garden is empty.</p>
               <p className="text-xs text-slate-300 mt-1">Drop a design above to start your first forensic search.</p>

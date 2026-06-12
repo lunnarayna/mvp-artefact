@@ -1,64 +1,62 @@
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { pipeline, RawImage } from "@xenova/transformers";
 
-// Cache the pipeline across requests (warm-up only happens once)
-let extractor: Awaited<ReturnType<typeof pipeline>> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let extractor: any = null;
 
 async function getExtractor() {
   if (!extractor) {
-    extractor = await pipeline("image-feature-extraction", "Xenova/clip-vit-base-patch32", {
-      revision: "main",
-    });
+    const { pipeline } = await import("@xenova/transformers");
+    extractor = await pipeline(
+      "image-feature-extraction",
+      "Xenova/clip-vit-base-patch32",
+      { revision: "main" }
+    );
   }
   return extractor;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { designId, imageBase64, mimeType } = await request.json();
-
-    if (!designId || !imageBase64) {
-      return NextResponse.json({ error: "Missing designId or imageBase64" }, { status: 400 });
-    }
-
-    // Auth check
-    const cookieStore = await cookies();
-    const supabase = createServerClient(
+    const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll: () => cookieStore.getAll(),
-          setAll: (toSet) => toSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options)),
-        },
-      }
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const { designId, imageBase64, mimeType, userId } = await request.json();
 
-    // Confirm the design belongs to this user
+    if (!designId || !imageBase64 || !userId) {
+      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
+    }
+
+    // Confirm design belongs to user
     const { data: design, error: designError } = await supabase
       .from("designs")
       .select("id")
       .eq("id", designId)
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .single();
 
     if (designError || !design) {
       return NextResponse.json({ error: "Design not found" }, { status: 404 });
     }
 
-    // Generate embedding
+    console.log("[embed] loading model...");
     const ext = await getExtractor();
-    const dataUrl = `data:${mimeType ?? "image/png"};base64,${imageBase64}`;
-    const image = await RawImage.fromURL(dataUrl);
-    const output = await ext(image, { pooling: "mean", normalize: true });
+    const { RawImage } = await import("@xenova/transformers");
+
+    // Convert base64 → Uint8Array → RawImage via sharp/jimp under the hood
+    const buffer = Buffer.from(imageBase64, "base64");
+    const uint8 = new Uint8Array(buffer);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const image = await (RawImage as any).fromBlob(new Blob([uint8], { type: mimeType ?? "image/jpeg" }));
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const output = await ext(image, { pooling: "mean", normalize: true }) as any;
     const embedding: number[] = Array.from(output.data as Float32Array);
 
-    // Save embedding to DB
+    console.log("[embed] embedding ready, dimensions:", embedding.length);
+
     const { error: updateError } = await supabase
       .from("designs")
       .update({ embedding })
