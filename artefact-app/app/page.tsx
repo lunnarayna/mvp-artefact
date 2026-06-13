@@ -56,75 +56,27 @@ const FigmaIcon = () => (
   </svg>
 );
 
-// ── Mock data ──────────────────────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────
 
 type SimilarityLevel = "VERY SIMILAR" | "MODERATELY SIMILAR" | "DISTANTLY SIMILAR";
 
-interface MatchCard {
+interface OwnMatch {
   id: string;
-  title: string;
-  subtitle: string;
-  score: number;
-  level: SimilarityLevel;
-  bg: string;
-  expanded?: boolean;
-  colorMatch?: number;
-  compMatch?: string;
-  assetSource?: string;
-}
-
-interface MatchResult {
-  id: string;
-  userId: string;
   fileName: string;
   signedUrl: string | null;
   similarity: number;
-  level: SimilarityLevel;
-  isOwn: boolean;
+  level: string;
   createdAt: string;
 }
 
-const ownGardenMocks: MatchCard[] = [
-  {
-    id: "og1",
-    title: "Neo-Brutalism Concept V2",
-    subtitle: "Matched from 'Marketing Site 2024'",
-    score: 94,
-    level: "VERY SIMILAR",
-    bg: "bg-slate-100",
-    expanded: true,
-    colorMatch: 88,
-    compMatch: "High · 91%",
-    assetSource: "Internal Library",
-  },
-  {
-    id: "og2",
-    title: "Gradient Hero",
-    subtitle: "Matched from 'Brand Explorations'",
-    score: 78,
-    level: "MODERATELY SIMILAR",
-    bg: "bg-gradient-to-br from-pink-200 to-purple-300",
-  },
-];
-
-const othersGardenMocks: MatchCard[] = [
-  {
-    id: "ext1",
-    title: "Enterprise Analytics UI",
-    subtitle: "Global Archive · User @j_forensics",
-    score: 96,
-    level: "VERY SIMILAR",
-    bg: "bg-slate-800",
-  },
-  {
-    id: "ext2",
-    title: "Smart Home Control App",
-    subtitle: "Community · Project 'Zen'",
-    score: 65,
-    level: "DISTANTLY SIMILAR",
-    bg: "bg-teal-900",
-  },
-];
+interface WebMatch {
+  title: string;
+  url: string;
+  thumbnailUrl: string;
+  source: string;
+  similarity: number;
+  level: string;
+}
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -144,64 +96,30 @@ function getGreeting() {
   return "Good evening";
 }
 
-// ── Sub-components ─────────────────────────────────────────────────────────
+// ── Sidebar nav ────────────────────────────────────────────────────────────
 
-function MatchCardComponent({ card }: { card: MatchCard }) {
-  const [open, setOpen] = useState(card.expanded ?? false);
+const navItems = [
+  { id: "dashboard", label: "Dashboard", icon: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+  )},
+  { id: "garden", label: "My Garden", icon: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3C7 3 3 7.5 3 12c0 1.5.5 3 1 4l8-8 8 8c.5-1 1-2.5 1-4 0-4.5-4-9-9-9z"/><path strokeLinecap="round" d="M12 21v-9"/></svg>
+  )},
+  { id: "discover", label: "Discover", icon: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path strokeLinecap="round" strokeLinejoin="round" d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/></svg>
+  )},
+  { id: "settings", label: "Settings", icon: (
+    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
+  )},
+];
 
-  return (
-    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-      <div className="flex items-center gap-3 p-3">
-        <div className={`w-16 h-16 rounded-xl flex-shrink-0 ${card.bg}`} />
-        <div className="flex-1 min-w-0">
-          <p className="text-[13px] font-semibold text-slate-800 leading-tight truncate">{card.title}</p>
-          <p className="text-[11px] text-slate-400 mt-0.5 truncate">{card.subtitle}</p>
-          <span className={`inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${levelColors[card.level]}`}>
-            {card.level}
-          </span>
-        </div>
-        <span className={`text-xs font-bold px-2.5 py-1.5 rounded-full flex-shrink-0 ${scoreColor(card.score)}`}>
-          {card.score}%
-        </span>
-      </div>
-
-      {card.expanded !== undefined && (
-        <button
-          onClick={() => setOpen(!open)}
-          className="w-full text-[11px] font-medium text-[#9A0458] py-2 border-t border-slate-50 hover:bg-slate-50 transition-colors flex items-center justify-center gap-1"
-        >
-          {open ? "Collapse Details ▲" : "Expand Details ▼"}
-        </button>
-      )}
-
-      {open && card.colorMatch && (
-        <div className="px-3 pb-3 pt-1 grid grid-cols-3 gap-2 border-t border-slate-50">
-          <div className="text-center">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1">Color Palette Overlap</p>
-            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div className="h-full bg-[#9A0458] rounded-full" style={{ width: `${card.colorMatch}%` }} />
-            </div>
-            <p className="text-[10px] font-semibold text-slate-600 mt-1">{card.colorMatch}% Match</p>
-          </div>
-          <div className="text-center">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1">Compositional Match</p>
-            <p className="text-[11px] font-semibold text-slate-700 mt-2">{card.compMatch}</p>
-          </div>
-          <div className="text-center">
-            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1">Asset Source</p>
-            <p className="text-[11px] font-semibold text-slate-700 mt-2">{card.assetSource}</p>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+// ── DropZone ───────────────────────────────────────────────────────────────
 
 type UploadStatus = "idle" | "uploading" | "success" | "error";
 
 function DropZone({ userId, onUploadComplete }: {
   userId: string;
-  onUploadComplete?: (designId: string, previewUrl: string) => void;
+  onUploadComplete?: (designId: string, previewUrl: string, signedUrl: string) => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
   const [status, setStatus] = useState<UploadStatus>("idle");
@@ -209,7 +127,6 @@ function DropZone({ userId, onUploadComplete }: {
   const [preview, setPreview] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Convert file to base64 string
   const toBase64 = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -236,10 +153,8 @@ function DropZone({ userId, onUploadComplete }: {
     setErrorMsg("");
 
     try {
-      // Convert to base64 before any async operations
       const base64 = await toBase64(file);
       const mimeType = file.type;
-
       const ext = file.name.split(".").pop();
       const fileName = `${Date.now()}.${ext}`;
       const storagePath = `${userId}/${fileName}`;
@@ -247,40 +162,38 @@ function DropZone({ userId, onUploadComplete }: {
       const { error: storageError } = await supabase.storage
         .from("designs")
         .upload(storagePath, file, { upsert: false });
-
       if (storageError) throw storageError;
 
       const { data: urlData } = await supabase.storage
         .from("designs")
         .createSignedUrl(storagePath, 60 * 60);
-
-      const publicUrl = urlData?.signedUrl ?? "";
+      const signedUrl = urlData?.signedUrl ?? "";
 
       const { data: record, error: dbError } = await supabase
         .from("designs")
-        .insert({
-          user_id: userId,
-          file_name: file.name,
-          storage_path: storagePath,
-          public_url: publicUrl,
-        })
-        .select()
+        .insert({ user_id: userId, file_name: file.name, storage_path: storagePath, public_url: signedUrl })
+        .select("id")
         .single();
 
+      console.log("[upload] record:", record, "dbError:", dbError);
       if (dbError) throw dbError;
+      if (!record?.id) throw new Error("Insert returned no record id");
 
       setStatus("success");
-      onUploadComplete?.(record.id, objectUrl);
+      onUploadComplete?.(record.id, objectUrl, signedUrl);
 
-      // Generate embedding after upload (non-blocking)
+      // Trigger embedding (non-blocking)
+      console.log("[embed] firing for design:", record.id);
       fetch("/api/embed", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ designId: record.id, imageBase64: base64, mimeType }),
-      }).catch((embedErr) => console.warn("[embed] error:", embedErr));
+        body: JSON.stringify({ designId: record.id, imageBase64: base64, mimeType, userId }),
+      })
+        .then(async (res) => { const json = await res.json(); console.log("[embed] response:", json); })
+        .catch((err) => console.warn("[embed] fetch error:", err));
 
     } catch (err: unknown) {
-      console.error(err);
+      console.error("[upload] error:", err);
       setErrorMsg(err instanceof Error ? err.message : "Upload failed. Please try again.");
       setStatus("error");
       setPreview(null);
@@ -298,39 +211,24 @@ function DropZone({ userId, onUploadComplete }: {
     <div
       onDragOver={(e) => { e.preventDefault(); if (status === "idle" || status === "error") setIsDragging(true); }}
       onDragLeave={() => setIsDragging(false)}
-      onDrop={(e) => {
-        e.preventDefault();
-        setIsDragging(false);
-        const file = e.dataTransfer.files[0];
-        if (file) handleFile(file);
-      }}
+      onDrop={(e) => { e.preventDefault(); setIsDragging(false); const file = e.dataTransfer.files[0]; if (file) handleFile(file); }}
       onClick={() => { if (status === "idle" || status === "error") inputRef.current?.click(); }}
       className={`rounded-3xl border-2 border-dashed p-10 md:p-14 flex flex-col items-center justify-center text-center transition-all duration-200 ${
-        status === "uploading"
-          ? "border-[#9A0458]/40 bg-[#9A0458]/3 cursor-wait"
-          : status === "success"
-          ? "border-emerald-300 bg-emerald-50 cursor-default"
-          : status === "error"
-          ? "border-red-300 bg-red-50 cursor-pointer"
-          : isDragging
-          ? "border-[#9A0458] bg-[#9A0458]/5 cursor-copy"
-          : "border-[#9A0458]/25 bg-white hover:border-[#9A0458]/50 cursor-pointer"
+        status === "uploading" ? "border-[#9A0458]/40 bg-[#9A0458]/3 cursor-wait"
+        : status === "success" ? "border-emerald-300 bg-emerald-50 cursor-default"
+        : status === "error" ? "border-red-300 bg-red-50 cursor-pointer"
+        : isDragging ? "border-[#9A0458] bg-[#9A0458]/5 cursor-copy"
+        : "border-[#9A0458]/25 bg-white hover:border-[#9A0458]/50 cursor-pointer"
       }`}
     >
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
-      />
+      <input ref={inputRef} type="file" accept="image/*" className="hidden"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }} />
 
       {status === "uploading" && (
         <>
           {preview && <img src={preview} alt="preview" className="w-20 h-20 object-cover rounded-2xl mb-4 opacity-60" />}
           <div className="w-8 h-8 border-4 border-slate-100 border-t-[#9A0458] rounded-full animate-spin mb-3" />
           <p className="text-sm font-semibold text-[#9A0458]">Uploading design...</p>
-          <p className="text-xs text-slate-400 mt-1">Please wait</p>
         </>
       )}
 
@@ -354,9 +252,7 @@ function DropZone({ userId, onUploadComplete }: {
           <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-500 text-xl mb-3">✕</div>
           <p className="text-sm font-semibold text-red-600">Upload failed</p>
           <p className="text-xs text-red-400 mt-1 max-w-xs">{errorMsg}</p>
-          <button onClick={(e) => { e.stopPropagation(); reset(); }} className="mt-3 text-xs text-slate-400 hover:text-slate-600 underline">
-            Try again
-          </button>
+          <button onClick={(e) => { e.stopPropagation(); reset(); }} className="mt-3 text-xs text-slate-400 hover:text-slate-600 underline">Try again</button>
         </>
       )}
 
@@ -368,18 +264,13 @@ function DropZone({ userId, onUploadComplete }: {
           <h3 className="text-lg font-bold text-[#9A0458] mb-1">Drop a design to start a forensic search</h3>
           <p className="text-sm text-slate-400 mb-5">Supports PNG, JPG, WebP · Max 10MB</p>
           <div className="flex gap-2">
-            <button
-              onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
-              className="px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
-            >
+            <button onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
+              className="px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors shadow-sm">
               Browse Files
             </button>
-            <button
-              onClick={(e) => e.stopPropagation()}
-              className="px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors shadow-sm flex items-center"
-            >
-              <FigmaIcon />
-              Import from Figma
+            <button onClick={(e) => e.stopPropagation()}
+              className="px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors shadow-sm flex items-center">
+              <FigmaIcon />Import from Figma
             </button>
           </div>
         </>
@@ -388,46 +279,31 @@ function DropZone({ userId, onUploadComplete }: {
   );
 }
 
-// ── Sidebar ────────────────────────────────────────────────────────────────
-
-const navItems = [
-  { id: "dashboard", label: "Dashboard", icon: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-  )},
-  { id: "garden", label: "My Garden", icon: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3C7 3 3 7.5 3 12c0 1.5.5 3 1 4l8-8 8 8c.5-1 1-2.5 1-4 0-4.5-4-9-9-9z"/><path strokeLinecap="round" d="M12 21v-9"/></svg>
-  )},
-  { id: "discover", label: "Discover", icon: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path strokeLinecap="round" strokeLinejoin="round" d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/></svg>
-  )},
-  { id: "settings", label: "Settings", icon: (
-    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg>
-  )},
-];
-
-// ── Main dashboard ─────────────────────────────────────────────────────────
+// ── Dashboard ──────────────────────────────────────────────────────────────
 
 function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [uploadedDesignId, setUploadedDesignId] = useState<string | null>(null);
-  const [uploadedPreview, setUploadedPreview] = useState<string | null>(null);
+  const [uploadedSignedUrl, setUploadedSignedUrl] = useState<string | null>(null);
+  const [ownGarden, setOwnGarden] = useState<OwnMatch[]>([]);
+  const [webMatches, setWebMatches] = useState<WebMatch[]>([]);
+  const [isMatchingOwn, setIsMatchingOwn] = useState(false);
+  const [isMatchingWeb, setIsMatchingWeb] = useState(false);
+
   const firstName = user.email?.split("@")[0] ?? "there";
+  const avatarLetter = firstName[0]?.toUpperCase();
 
-  const [matchResults, setMatchResults] = useState<{
-    ownGarden: MatchResult[];
-    othersGarden: MatchResult[];
-  } | null>(null);
-  const [isMatching, setIsMatching] = useState(false);
-
-  const handleUploadComplete = async (designId: string, previewUrl: string) => {
+  const handleUploadComplete = async (designId: string, _previewUrl: string, signedUrl: string) => {
     setUploadedDesignId(designId);
-    setUploadedPreview(previewUrl);
-    setMatchResults(null);
-    setIsMatching(true);
+    setUploadedSignedUrl(signedUrl);
+    setOwnGarden([]);
+    setWebMatches([]);
+    setIsMatchingOwn(true);
+    setIsMatchingWeb(true);
 
-    // Wait a moment for embedding to complete, then search
-    const poll = async (attempts = 0): Promise<void> => {
-      if (attempts > 12) { setIsMatching(false); return; }
+    // Poll for own garden (waits for embedding)
+    const pollOwn = async (attempts = 0): Promise<void> => {
+      if (attempts > 12) { setIsMatchingOwn(false); return; }
       await new Promise((r) => setTimeout(r, 3000));
       const res = await fetch("/api/match", {
         method: "POST",
@@ -435,15 +311,35 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
         body: JSON.stringify({ designId, userId: user.id }),
       });
       const data = await res.json();
-      if (data.error === "Design or embedding not found") {
-        return poll(attempts + 1);
-      }
-      setMatchResults(data);
-      setIsMatching(false);
+      if (data.error === "Design or embedding not found") return pollOwn(attempts + 1);
+      setOwnGarden(data.ownGarden ?? []);
+      setIsMatchingOwn(false);
     };
-    poll();
+
+    // Search web immediately using signed URL
+    const searchWeb = async () => {
+      try {
+        // Wait a bit for signed URL to be ready
+        await new Promise((r) => setTimeout(r, 2000));
+        const res = await fetch("/api/search-web", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ imageUrl: signedUrl, designId, userId: user.id }),
+        });
+        const data = await res.json();
+        setWebMatches(data.matches ?? []);
+      } catch (err) {
+        console.warn("[search-web] error:", err);
+      } finally {
+        setIsMatchingWeb(false);
+      }
+    };
+
+    pollOwn();
+    searchWeb();
   };
-  const avatarLetter = firstName[0]?.toUpperCase();
+
+  const isSearching = isMatchingOwn || isMatchingWeb;
 
   return (
     <div className="min-h-screen bg-[#F4F6F9] flex antialiased font-sans">
@@ -454,34 +350,24 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
             <h2 className="text-lg font-black text-[#9A0458] tracking-tight leading-none">EchoGarden</h2>
             <span className="text-[10px] font-semibold text-slate-400 tracking-wide uppercase">Empathetic Forensics</span>
           </div>
-
           <nav className="px-3 space-y-0.5">
             {navItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setActiveTab(item.id)}
+              <button key={item.id} onClick={() => setActiveTab(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
-                  activeTab === item.id
-                    ? "bg-[#9A0458] text-white shadow-sm shadow-[#9A0458]/20"
-                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
-                }`}
-              >
+                  activeTab === item.id ? "bg-[#9A0458] text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                }`}>
                 <span className={activeTab === item.id ? "text-white" : "text-slate-400"}>{item.icon}</span>
                 {item.label}
               </button>
             ))}
           </nav>
         </div>
-
         <div className="px-3 space-y-1">
-          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors">
+          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-50 transition-colors">
             <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01"/></svg>
             Help Center
           </button>
-          <button
-            onClick={onLogout}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
-          >
+          <button onClick={onLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors">
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
             Log Out
           </button>
@@ -499,77 +385,64 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <SearchIcon />
-              <input
-                placeholder="Search investigations..."
-                className="pl-7 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-[#9A0458]/20 focus:border-[#9A0458]/40 transition-all"
-              />
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
-                <SearchIcon />
-              </span>
+              <input placeholder="Search investigations..." className="pl-7 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-[#9A0458]/20 focus:border-[#9A0458]/40 transition-all" />
+              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><SearchIcon /></span>
             </div>
-            <button className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-colors">
-              <BellIcon />
-            </button>
-            <button className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 hover:text-slate-700 transition-colors">
-              <HelpIcon />
-            </button>
-            <div className="w-8 h-8 rounded-full bg-[#9A0458] text-white text-xs font-bold flex items-center justify-center">
-              {avatarLetter}
-            </div>
+            <button className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 transition-colors"><BellIcon /></button>
+            <button className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 transition-colors"><HelpIcon /></button>
+            <div className="w-8 h-8 rounded-full bg-[#9A0458] text-white text-xs font-bold flex items-center justify-center">{avatarLetter}</div>
           </div>
         </header>
 
         {/* Content */}
         <main className="flex-1 p-6 max-w-6xl w-full mx-auto">
           <div className="mb-6">
-            <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-              {getGreeting()}, {firstName}
-            </h1>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">{getGreeting()}, {firstName}</h1>
             <p className="text-sm text-slate-400 mt-0.5">Let&apos;s uncover the visual DNA of your latest concept.</p>
           </div>
 
-          {/* Drop zone */}
           <div className="mb-8">
             <DropZone userId={user.id} onUploadComplete={handleUploadComplete} />
           </div>
 
-          {/* Gardens — only shown after an upload */}
           {uploadedDesignId ? (
-            isMatching ? (
+            isSearching ? (
               <div className="text-center py-16 select-none">
                 <div className="w-8 h-8 border-4 border-slate-100 border-t-[#9A0458] rounded-full animate-spin mx-auto mb-4" />
                 <p className="text-sm font-medium text-slate-500">Searching for visual echoes...</p>
-                <p className="text-xs text-slate-300 mt-1">Comparing embeddings across the garden</p>
+                <p className="text-xs text-slate-300 mt-1">
+                  {isMatchingOwn && isMatchingWeb ? "Scanning your garden and the web" :
+                   isMatchingOwn ? "Scanning your garden..." :
+                   "Searching the web..."}
+                </p>
               </div>
-            ) : matchResults ? (
+            ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Your Garden */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-base">🌱</span>
                       <h2 className="text-sm font-bold text-slate-800">Your Garden</h2>
                     </div>
-                    <span className="text-xs text-slate-400">{matchResults.ownGarden.length} matches</span>
+                    <span className="text-xs text-slate-400">{ownGarden.length} matches</span>
                   </div>
-                  {matchResults.ownGarden.length === 0 ? (
+                  {ownGarden.length === 0 ? (
                     <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center">
-                      <p className="text-sm text-slate-400">No echoes found in your own history.</p>
+                      <p className="text-sm text-slate-400">No echoes found in your upload history.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {matchResults.ownGarden.map((m) => (
+                      {ownGarden.map((m) => (
                         <div key={m.id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                           <div className="flex items-center gap-3 p-3">
-                            {m.signedUrl ? (
-                              <img src={m.signedUrl} alt={m.fileName} className="w-16 h-16 object-cover rounded-xl flex-shrink-0" />
-                            ) : (
-                              <div className="w-16 h-16 rounded-xl bg-slate-100 flex-shrink-0" />
-                            )}
+                            {m.signedUrl
+                              ? <img src={m.signedUrl} alt={m.fileName} className="w-16 h-16 object-cover rounded-xl flex-shrink-0" />
+                              : <div className="w-16 h-16 rounded-xl bg-slate-100 flex-shrink-0" />}
                             <div className="flex-1 min-w-0">
                               <p className="text-[13px] font-semibold text-slate-800 leading-tight truncate">{m.fileName}</p>
                               <p className="text-[11px] text-slate-400 mt-0.5">{new Date(m.createdAt).toLocaleDateString()}</p>
-                              <span className={`inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${levelColors[m.level]}`}>
+                              <span className={`inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${levelColors[m.level as SimilarityLevel] ?? "bg-slate-100 text-slate-500"}`}>
                                 {m.level}
                               </span>
                             </div>
@@ -582,50 +455,43 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
                     </div>
                   )}
                 </div>
+
+                {/* Others' Garden */}
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
                       <span className="text-base">🧭</span>
                       <h2 className="text-sm font-bold text-slate-800">Others&apos; Garden</h2>
                     </div>
-                    <span className="text-xs text-slate-400">{matchResults.othersGarden.length} matches</span>
+                    <span className="text-xs text-slate-400">{webMatches.length} matches</span>
                   </div>
-                  {matchResults.othersGarden.length === 0 ? (
+                  {webMatches.length === 0 ? (
                     <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center">
-                      <p className="text-sm text-slate-400">No echoes found in the community yet.</p>
+                      <p className="text-sm text-slate-400">No visual echoes found on the web.</p>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {matchResults.othersGarden.map((m) => (
-                        <div key={m.id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-                          <div className="flex items-center gap-3 p-3">
-                            {m.signedUrl ? (
-                              <img src={m.signedUrl} alt={m.fileName} className="w-16 h-16 object-cover rounded-xl flex-shrink-0" />
-                            ) : (
-                              <div className="w-16 h-16 rounded-xl bg-slate-100 flex-shrink-0" />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <p className="text-[13px] font-semibold text-slate-800 leading-tight truncate">{m.fileName}</p>
-                              <p className="text-[11px] text-slate-400 mt-0.5">{new Date(m.createdAt).toLocaleDateString()}</p>
-                              <span className={`inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${levelColors[m.level]}`}>
-                                {m.level}
-                              </span>
-                            </div>
-                            <span className={`text-xs font-bold px-2.5 py-1.5 rounded-full flex-shrink-0 ${scoreColor(m.similarity)}`}>
-                              {m.similarity}%
+                      {webMatches.map((m, i) => (
+                        <a key={i} href={m.url} target="_blank" rel="noopener noreferrer"
+                          className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex items-center gap-3 p-3 group">
+                          <img src={m.thumbnailUrl} alt={m.title}
+                            className="w-16 h-16 object-cover rounded-xl flex-shrink-0 bg-slate-100"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-slate-800 leading-tight truncate group-hover:text-[#9A0458] transition-colors">{m.title}</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5 truncate">{m.source}</p>
+                            <span className={`inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${levelColors[m.level as SimilarityLevel] ?? "bg-slate-100 text-slate-500"}`}>
+                              {m.level}
                             </span>
                           </div>
-                        </div>
+                          <span className={`text-xs font-bold px-2.5 py-1.5 rounded-full flex-shrink-0 ${scoreColor(m.similarity)}`}>
+                            {m.similarity}%
+                          </span>
+                        </a>
                       ))}
                     </div>
                   )}
                 </div>
-              </div>
-            ) : (
-              <div className="text-center py-16 select-none">
-                <div className="text-5xl mb-3">🌿</div>
-                <p className="text-sm font-medium text-slate-400">No matches found.</p>
-                <p className="text-xs text-slate-300 mt-1">Upload more designs to grow your garden.</p>
               </div>
             )
           ) : (
@@ -640,8 +506,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
 
       {/* FAB */}
       <button className="fixed bottom-6 right-6 bg-[#9A0458] text-white px-4 py-3 rounded-2xl shadow-lg shadow-[#9A0458]/30 flex items-center gap-2 text-sm font-semibold hover:bg-[#7d0348] transition-colors z-20">
-        <PlusIcon />
-        New Analysis
+        <PlusIcon />New Analysis
       </button>
     </div>
   );
@@ -660,12 +525,10 @@ export default function Home() {
       setIsLoading(false);
     };
     getInitialSession();
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
@@ -694,26 +557,20 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-white flex flex-col md:flex-row antialiased overflow-hidden">
-      <div
-        className="w-full md:w-1/2 p-12 md:p-24 flex flex-col justify-end relative min-h-[45vh] md:min-h-screen bg-cover bg-center rounded-none md:rounded-r-[24px]"
-        style={{ backgroundImage: `url('/EchoGarden.png')` }}
-      >
+      <div className="w-full md:w-1/2 p-12 md:p-24 flex flex-col justify-end relative min-h-[45vh] md:min-h-screen bg-cover bg-center rounded-none md:rounded-r-[24px]"
+        style={{ backgroundImage: `url('/EchoGarden.png')` }}>
         <div className="relative z-10 text-white select-none hidden md:block">
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-2 drop-shadow-sm">EchoGarden</h1>
           <p className="text-white/90 text-sm md:text-lg font-medium tracking-wide">Empathetic Forensics & Design Analysis</p>
         </div>
       </div>
-
       <div className="w-full md:w-1/2 p-8 md:p-16 flex flex-col items-center justify-center bg-white">
         <div className="w-full max-w-sm text-center">
           <h2 className="text-4xl font-bold text-black tracking-tight mb-3">Entrar</h2>
           <p className="text-slate-600 text-sm mb-8 max-w-[280px] mx-auto">Acesse sua conta para iniciar uma busca forense visual</p>
-          <button
-            onClick={handleLogin}
-            className="w-full flex items-center justify-center bg-white hover:bg-slate-50 text-slate-800 font-medium py-3.5 px-5 border border-slate-200 rounded-xl transition-all duration-200 active:scale-[0.99] shadow-sm text-sm cursor-pointer"
-          >
-            <GoogleIcon />
-            Entrar com o Google
+          <button onClick={handleLogin}
+            className="w-full flex items-center justify-center bg-white hover:bg-slate-50 text-slate-800 font-medium py-3.5 px-5 border border-slate-200 rounded-xl transition-all duration-200 active:scale-[0.99] shadow-sm text-sm cursor-pointer">
+            <GoogleIcon />Entrar com o Google
           </button>
         </div>
       </div>

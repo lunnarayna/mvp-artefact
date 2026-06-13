@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
-    // Fetch the embedding of the uploaded design
+    // Fetch embedding of the uploaded design
     const { data: design, error: designError } = await supabase
       .from("designs")
       .select("embedding")
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Design or embedding not found" }, { status: 404 });
     }
 
-    // Run similarity search
+    // Search user's own past uploads (Your Garden)
     const { data: matches, error: matchError } = await supabase.rpc("match_designs", {
       query_embedding: design.embedding,
       match_threshold: 0.3,
@@ -36,10 +36,13 @@ export async function POST(request: NextRequest) {
 
     if (matchError) throw matchError;
 
-    // Separate into own garden vs others' garden
-    // Generate signed URLs for each match
-    const withUrls = await Promise.all(
-      (matches ?? []).map(async (m: {
+    // Only show the user's own past designs
+    const ownDesigns = (matches ?? []).filter(
+      (m: { user_id: string }) => m.user_id === userId
+    );
+
+    const ownGarden = await Promise.all(
+      ownDesigns.map(async (m: {
         id: string;
         user_id: string;
         file_name: string;
@@ -53,29 +56,22 @@ export async function POST(request: NextRequest) {
 
         const similarity = Math.round(m.similarity * 100);
         const level =
-          similarity >= 85
-            ? "VERY SIMILAR"
-            : similarity >= 70
-            ? "MODERATELY SIMILAR"
-            : "DISTANTLY SIMILAR";
+          similarity >= 85 ? "VERY SIMILAR" :
+          similarity >= 70 ? "MODERATELY SIMILAR" :
+          "DISTANTLY SIMILAR";
 
         return {
           id: m.id,
-          userId: m.user_id,
           fileName: m.file_name,
           signedUrl: urlData?.signedUrl ?? null,
           similarity,
           level,
-          isOwn: m.user_id === userId,
           createdAt: m.created_at,
         };
       })
     );
 
-    const ownGarden = withUrls.filter((m) => m.isOwn);
-    const othersGarden = withUrls.filter((m) => !m.isOwn);
-
-    return NextResponse.json({ ownGarden, othersGarden });
+    return NextResponse.json({ ownGarden });
   } catch (err) {
     console.error("[match] error:", err);
     return NextResponse.json(
