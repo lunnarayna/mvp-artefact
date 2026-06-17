@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
-import { getJson } from "serpapi";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,87 +17,68 @@ export async function POST(request: NextRequest) {
 
     const { data: design, error: designError } = await supabase
       .from("designs")
-      .select("embedding")
+      .select("id")
       .eq("id", designId)
       .eq("user_id", userId)
       .single();
 
-    if (designError || !design?.embedding) {
+    if (designError || !design) {
       return NextResponse.json({ error: "Design not found" }, { status: 404 });
     }
 
-    console.log("[search-web] reverse image search:", imageUrl);
+    console.log("[search-web] fetching image for Gemini analysis:", imageUrl);
 
-    const results = await getJson({
-      engine: "google_reverse_image",
-      image_url: imageUrl,
-      api_key: process.env.SERPAPI_KEY!,
-    });
+    const imgRes = await fetch(imageUrl);
+    if (!imgRes.ok) throw new Error(`Failed to fetch image: ${imgRes.status}`);
+    const imgBuffer = await imgRes.arrayBuffer();
+    const imgBase64 = Buffer.from(imgBuffer).toString("base64");
+    const contentType = imgRes.headers.get("content-type") ?? "image/jpeg";
 
-    const imageResults: { title: string; url: string; thumbnailUrl: string; source: string }[] = [];
-    const items = results?.image_results ?? results?.inline_images ?? [];
+    // No search grounding (free tier compatible) — just describe the image
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
-    for (const item of items.slice(0, 30)) {
-      const url = item.original ?? item.link ?? item.url;
-      const thumbnail = item.thumbnail ?? item.image ?? url;
-      if (url && thumbnail) {
-        imageResults.push({
-          title: item.title ?? "Untitled",
-          url,
-          thumbnailUrl: thumbnail,
-          source: item.source ?? item.displayed_link ?? "",
-        });
-      }
+    const prompt = `Look at this design image carefully. Describe its visual style in 3-6 short search-friendly keyword phrases that someone could use to find visually similar designs online (e.g. on Pinterest, Dribbble, or Google Images).
+
+Focus on: color palette, composition style, design movement/aesthetic (e.g. "neo-brutalism", "glassmorphism", "minimalist"), subject matter, and mood.
+
+Respond ONLY with a JSON array of strings, nothing else. Example:
+["neo-brutalist dashboard UI", "pink and black color scheme", "bold geometric layout"]`;
+
+    console.log("[search-web] calling Gemini for keyword extraction...");
+
+    const result = await model.generateContent([
+      { inlineData: { mimeType: contentType, data: imgBase64 } },
+      { text: prompt },
+    ]);
+
+    const responseText = result.response.text();
+    console.log("[search-web] raw Gemini response:", responseText);
+
+    const cleaned = responseText.replace(/```json|```/g, "").trim();
+
+    let keywords: string[] = [];
+    try {
+      keywords = JSON.parse(cleaned);
+    } catch (parseErr) {
+      console.error("[search-web] failed to parse keywords:", parseErr);
+      keywords = [];
     }
 
-    console.log("[search-web] raw results:", imageResults.length);
+    // Build clickable search links instead of automatic comparison
+    const searchLinks = keywords.map((kw) => ({
+      title: kw,
+      url: `https://www.google.com/search?q=${encodeURIComponent(kw)}&tbm=isch`,
+      pinterestUrl: `https://www.pinterest.com/search/pins/?q=${encodeURIComponent(kw)}`,
+    }));
 
-    if (imageResults.length === 0) {
-      return NextResponse.json({ matches: [] });
-    }
-
-    const { pipeline, RawImage } = await import("@xenova/transformers");
-    const ext = await pipeline(
-      "image-feature-extraction",
-      "Xenova/clip-vit-base-patch32",
-      { revision: "main" }
-    );
-
-    const queryEmbedding: number[] = design.embedding;
-    const matches: {
-      title: string; url: string; thumbnailUrl: string;
-      source: string; similarity: number; level: string;
-    }[] = [];
-
-    for (const img of imageResults) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const image = await (RawImage as any).fromURL(img.thumbnailUrl);
-        const output = await ext(image, { pooling: "mean", normalize: true } as Record<string, unknown>) as any;
-        const imgEmbedding: number[] = Array.from(output.data as Float32Array);
-
-        let dot = 0, normA = 0, normB = 0;
-        for (let i = 0; i < queryEmbedding.length; i++) {
-          dot += queryEmbedding[i] * imgEmbedding[i];
-          normA += queryEmbedding[i] ** 2;
-          normB += imgEmbedding[i] ** 2;
-        }
-        const similarity = Math.round((dot / (Math.sqrt(normA) * Math.sqrt(normB))) * 100);
-
-        if (similarity >= 30) {
-          const level = similarity >= 85 ? "VERY SIMILAR" : similarity >= 70 ? "MODERATELY SIMILAR" : "DISTANTLY SIMILAR";
-          matches.push({ ...img, similarity, level });
-        }
-      } catch {
-        // skip unloadable images
-      }
-    }
-
-    matches.sort((a, b) => b.similarity - a.similarity);
-    console.log("[search-web] matches after threshold:", matches.length);
-    return NextResponse.json({ matches });
+    console.log("[search-web] generated search links:", searchLinks.length);
+    return NextResponse.json({ keywords, searchLinks });
   } catch (err) {
     console.error("[search-web] error:", err);
-    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "Internal error" },
+      { status: 500 }
+    );
   }
 }

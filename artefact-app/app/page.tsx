@@ -58,16 +58,25 @@ const TrashIcon = () => (
 type SimilarityLevel = "VERY SIMILAR" | "MODERATELY SIMILAR" | "DISTANTLY SIMILAR";
 
 interface OwnMatch {
-  id: string; fileName: string; signedUrl: string | null;
-  similarity: number; level: string; createdAt: string;
+  id: string;
+  fileName: string;
+  signedUrl: string | null;
+  similarity: number;
+  level: string;
+  createdAt: string;
 }
-interface WebMatch {
-  title: string; url: string; thumbnailUrl: string;
-  source: string; similarity: number; level: string;
+interface SearchLink {
+  title: string;
+  url: string;
+  pinterestUrl: string;
 }
 interface GardenDesign {
-  id: string; file_name: string; permanent_url: string | null;
-  storage_path: string; created_at: string; saved: boolean;
+  id: string;
+  file_name: string;
+  permanent_url: string | null;
+  storage_path: string;
+  created_at: string;
+  saved: boolean;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -78,23 +87,46 @@ const levelColors: Record<SimilarityLevel, string> = {
 };
 const scoreColor = (s: number) =>
   s >= 85 ? "bg-[#9A0458] text-white" : s >= 70 ? "bg-amber-500 text-white" : "bg-slate-400 text-white";
-const getGreeting = () => {
+function getGreeting() {
   const h = new Date().getHours();
-  return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
-};
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
 
 // ── Nav ────────────────────────────────────────────────────────────────────
 const navItems = [
-  { id: "dashboard", label: "Dashboard", icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg> },
-  { id: "garden", label: "My Garden", icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 3C7 3 3 7.5 3 12c0 1.5.5 3 1 4l8-8 8 8c.5-1 1-2.5 1-4 0-4.5-4-9-9-9z"/><path strokeLinecap="round" d="M12 21v-9"/></svg> },
-  { id: "discover", label: "Discover", icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path strokeLinecap="round" strokeLinejoin="round" d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"/></svg> },
-  { id: "settings", label: "Settings", icon: <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><circle cx="12" cy="12" r="3"/></svg> },
+  {
+    id: "dashboard",
+    label: "Dashboard",
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <rect x="3" y="3" width="7" height="7" rx="1"/>
+        <rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="3" y="14" width="7" height="7" rx="1"/>
+        <rect x="14" y="14" width="7" height="7" rx="1"/>
+      </svg>
+    ),
+  },
+  {
+    id: "garden",
+    label: "My Garden",
+    icon: (
+      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 3C7 3 3 7.5 3 12c0 1.5.5 3 1 4l8-8 8 8c.5-1 1-2.5 1-4 0-4.5-4-9-9-9z"/>
+        <path strokeLinecap="round" d="M12 21v-9"/>
+      </svg>
+    ),
+  },
 ];
 
 // ── DropZone ───────────────────────────────────────────────────────────────
 type UploadStatus = "idle" | "uploading" | "confirm" | "success" | "error";
 
-function DropZone({ userId, onUploadComplete }: {
+function DropZone({
+  userId,
+  onUploadComplete,
+}: {
   userId: string;
   onUploadComplete: (designId: string, previewUrl: string, publicUrl: string) => void;
 }) {
@@ -114,14 +146,22 @@ function DropZone({ userId, onUploadComplete }: {
     });
 
   const handleFile = (file: File) => {
-    if (!file.type.startsWith("image/")) { setErrorMsg("Only image files supported."); setStatus("error"); return; }
-    if (file.size > 10 * 1024 * 1024) { setErrorMsg("File too large. Max 10MB."); setStatus("error"); return; }
+    if (!file.type.startsWith("image/")) {
+      setErrorMsg("Only image files supported.");
+      setStatus("error");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setErrorMsg("File too large. Max 10MB.");
+      setStatus("error");
+      return;
+    }
     setPreview(URL.createObjectURL(file));
     setPendingFile(file);
     setStatus("confirm");
   };
 
-  const doUpload = async (save: boolean) => {
+  const doUpload = async () => {
     if (!pendingFile) return;
     setStatus("uploading");
     try {
@@ -131,74 +171,117 @@ function DropZone({ userId, onUploadComplete }: {
       const fileName = `${Date.now()}.${ext}`;
       const storagePath = `${userId}/${fileName}`;
 
-      const { error: storageError } = await supabase.storage.from("designs").upload(storagePath, pendingFile, { upsert: false });
+      const { error: storageError } = await supabase.storage
+        .from("designs")
+        .upload(storagePath, pendingFile, { upsert: false });
       if (storageError) throw storageError;
 
       const publicUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/designs/${storagePath}`;
 
       const { data: record, error: dbError } = await supabase
         .from("designs")
-        .insert({ user_id: userId, file_name: pendingFile.name, storage_path: storagePath, public_url: publicUrl, permanent_url: publicUrl, saved: save })
-        .select("id").single();
+        .insert({
+          user_id: userId,
+          file_name: pendingFile.name,
+          storage_path: storagePath,
+          public_url: publicUrl,
+          permanent_url: publicUrl,
+          saved: false,
+        })
+        .select("id")
+        .single();
 
       if (dbError) throw dbError;
       if (!record?.id) throw new Error("No record id returned");
 
       setStatus("success");
-      onUploadComplete(record.id, preview!, publicUrl);
+      onUploadComplete(record.id, preview as string, publicUrl);
 
       fetch("/api/embed", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ designId: record.id, imageBase64: base64, mimeType, userId }),
-      }).then(async (r) => console.log("[embed]", await r.json())).catch(console.warn);
+      })
+        .then(async (r) => {
+          const json = await r.json();
+          console.log("[embed] response:", json);
+        })
+        .catch((err) => console.warn("[embed] fetch error:", err));
     } catch (err) {
       setErrorMsg(err instanceof Error ? err.message : "Upload failed.");
       setStatus("error");
     }
   };
 
-  const reset = () => { setStatus("idle"); setPreview(null); setPendingFile(null); setErrorMsg(""); if (inputRef.current) inputRef.current.value = ""; };
+  const reset = () => {
+    setStatus("idle");
+    setPreview(null);
+    setPendingFile(null);
+    setErrorMsg("");
+    if (inputRef.current) inputRef.current.value = "";
+  };
 
   return (
     <div
-      onDragOver={(e) => { e.preventDefault(); if (status === "idle" || status === "error") setIsDragging(true); }}
+      onDragOver={(e) => {
+        e.preventDefault();
+        if (status === "idle" || status === "error") setIsDragging(true);
+      }}
       onDragLeave={() => setIsDragging(false)}
-      onDrop={(e) => { e.preventDefault(); setIsDragging(false); const f = e.dataTransfer.files[0]; if (f) handleFile(f); }}
-      onClick={() => { if (status === "idle" || status === "error") inputRef.current?.click(); }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const f = e.dataTransfer.files[0];
+        if (f) handleFile(f);
+      }}
+      onClick={() => {
+        if (status === "idle" || status === "error") inputRef.current?.click();
+      }}
       className={`rounded-3xl border-2 border-dashed p-10 md:p-14 flex flex-col items-center justify-center text-center transition-all duration-200 ${
-        status === "uploading" ? "border-[#9A0458]/40 bg-[#9A0458]/3 cursor-wait"
-        : status === "confirm" ? "border-[#9A0458] bg-white cursor-default"
-        : status === "success" ? "border-emerald-300 bg-emerald-50 cursor-default"
-        : status === "error" ? "border-red-300 bg-red-50 cursor-pointer"
-        : isDragging ? "border-[#9A0458] bg-[#9A0458]/5 cursor-copy"
-        : "border-[#9A0458]/25 bg-white hover:border-[#9A0458]/50 cursor-pointer"
+        status === "uploading"
+          ? "border-[#9A0458]/40 bg-[#9A0458]/3 cursor-wait"
+          : status === "confirm"
+          ? "border-[#9A0458] bg-white cursor-default"
+          : status === "success"
+          ? "border-emerald-300 bg-emerald-50 cursor-default"
+          : status === "error"
+          ? "border-red-300 bg-red-50 cursor-pointer"
+          : isDragging
+          ? "border-[#9A0458] bg-[#9A0458]/5 cursor-copy"
+          : "border-[#9A0458]/25 bg-white hover:border-[#9A0458]/50 cursor-pointer"
       }`}
     >
-      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}/>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) handleFile(f);
+        }}
+      />
 
       {status === "uploading" && (
-        <> {preview && <img src={preview} alt="" className="max-w-xs max-h-48 object-contain mb-4 opacity-60"/>}
-          <div className="w-8 h-8 border-4 border-slate-100 border-t-[#9A0458] rounded-full animate-spin mb-3"/>
+        <>
+          {preview && <img src={preview} alt="" className="max-w-xs max-h-48 object-contain mb-4 opacity-60" />}
+          <div className="w-8 h-8 border-4 border-slate-100 border-t-[#9A0458] rounded-full animate-spin mb-3" />
           <p className="text-sm font-semibold text-[#9A0458]">Uploading design...</p>
         </>
       )}
 
       {status === "confirm" && (
         <div className="flex flex-col items-center gap-4" onClick={(e) => e.stopPropagation()}>
-          {preview && <img src={preview} alt="" className="max-w-xs max-h-60 object-contain"/>}
-          <p className="text-sm font-semibold text-slate-700">Save this design to your garden?</p>
-          <p className="text-xs text-slate-400 -mt-2">Saved designs appear in My Garden for future reference.</p>
+          {preview && <img src={preview} alt="" className="max-w-xs max-h-60 object-contain" />}
+          <p className="text-sm font-semibold text-slate-700">Ready to analyse this design?</p>
           <div className="flex gap-3">
-            <button onClick={() => doUpload(true)}
-              className="px-5 py-2.5 bg-[#9A0458] text-white text-sm font-semibold rounded-xl hover:bg-[#7d0348] transition-colors">
-              Save & Analyse
+            <button
+              onClick={doUpload}
+              className="px-5 py-2.5 bg-[#9A0458] text-white text-sm font-semibold rounded-xl hover:bg-[#7d0348] transition-colors"
+            >
+              Start Analysis
             </button>
-            <button onClick={() => doUpload(false)}
-              className="px-5 py-2.5 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-50 transition-colors">
-              Just Analyse
-            </button>
-            <button onClick={reset}
-              className="px-4 py-2.5 text-slate-400 text-sm hover:text-slate-600 transition-colors">
+            <button onClick={reset} className="px-4 py-2.5 text-slate-400 text-sm hover:text-slate-600 transition-colors">
               Cancel
             </button>
           </div>
@@ -206,39 +289,63 @@ function DropZone({ userId, onUploadComplete }: {
       )}
 
       {status === "success" && (
-        <> {preview && (
+        <>
+          {preview && (
             <div className="relative mb-5">
-              <img src={preview} alt="" className="max-w-sm max-h-80 object-contain"/>
-              <div className="absolute -bottom-3 -right-3 w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white text-sm shadow-md">✓</div>
+              <img src={preview} alt="" className="max-w-sm max-h-80 object-contain" />
+              <div className="absolute -bottom-3 -right-3 w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white text-sm shadow-md">
+                ✓
+              </div>
             </div>
           )}
           <p className="text-sm font-semibold text-emerald-700 mt-2">Design uploaded successfully</p>
-          <button onClick={(e) => { e.stopPropagation(); reset(); }} className="mt-2 text-xs text-slate-400 hover:text-slate-600 underline">Upload another</button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              reset();
+            }}
+            className="mt-2 text-xs text-slate-400 hover:text-slate-600 underline"
+          >
+            Upload another
+          </button>
         </>
       )}
 
       {status === "error" && (
-        <> <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-500 text-xl mb-3">✕</div>
+        <>
+          <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-red-500 text-xl mb-3">
+            ✕
+          </div>
           <p className="text-sm font-semibold text-red-600">Upload failed</p>
           <p className="text-xs text-red-400 mt-1 max-w-xs">{errorMsg}</p>
-          <button onClick={(e) => { e.stopPropagation(); reset(); }} className="mt-3 text-xs text-slate-400 hover:text-slate-600 underline">Try again</button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              reset();
+            }}
+            className="mt-3 text-xs text-slate-400 hover:text-slate-600 underline"
+          >
+            Try again
+          </button>
         </>
       )}
 
       {status === "idle" && (
-        <> <div className="w-16 h-16 rounded-2xl bg-[#9A0458]/8 flex items-center justify-center text-[#9A0458] mb-4"><UploadIcon/></div>
+        <>
+          <div className="w-16 h-16 rounded-2xl bg-[#9A0458]/8 flex items-center justify-center text-[#9A0458] mb-4">
+            <UploadIcon />
+          </div>
           <h3 className="text-lg font-bold text-[#9A0458] mb-1">Drop a design to start a forensic search</h3>
           <p className="text-sm text-slate-400 mb-5">Supports PNG, JPG, WebP · Max 10MB</p>
-          <div className="flex gap-2">
-            <button onClick={(e) => { e.stopPropagation(); inputRef.current?.click(); }}
-              className="px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors shadow-sm">
-              Browse Files
-            </button>
-            <button onClick={(e) => e.stopPropagation()}
-              className="px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors shadow-sm flex items-center">
-              <FigmaIcon/>Import from Figma
-            </button>
-          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              inputRef.current?.click();
+            }}
+            className="px-4 py-2 text-sm font-medium bg-white border border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 transition-colors shadow-sm"
+          >
+            Browse Files
+          </button>
         </>
       )}
     </div>
@@ -259,56 +366,67 @@ function MyGardenTab({ userId }: { userId: string }) {
     setLoading(false);
   }, [userId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Remove this design from your garden?")) return;
     setDeleting(id);
     await fetch("/api/garden", {
-      method: "DELETE", headers: { "Content-Type": "application/json" },
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ designId: id, userId }),
     });
     setDesigns((prev) => prev.filter((d) => d.id !== id));
     setDeleting(null);
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center py-24">
-      <div className="w-8 h-8 border-4 border-slate-100 border-t-[#9A0458] rounded-full animate-spin"/>
-    </div>
-  );
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-8 h-8 border-4 border-slate-100 border-t-[#9A0458] rounded-full animate-spin" />
+      </div>
+    );
+  }
 
-  if (designs.length === 0) return (
-    <div className="text-center py-24 select-none">
-      <div className="text-5xl mb-3">🌱</div>
-      <p className="text-sm font-medium text-slate-400">Your garden is empty.</p>
-      <p className="text-xs text-slate-300 mt-1">Save designs when uploading to grow your garden.</p>
-    </div>
-  );
+  if (designs.length === 0) {
+    return (
+      <div className="text-center py-24 select-none">
+        <div className="text-5xl mb-3">🌱</div>
+        <p className="text-sm font-medium text-slate-400">Your garden is empty.</p>
+        <p className="text-xs text-slate-300 mt-1">Save designs after analysis to grow your garden.</p>
+      </div>
+    );
+  }
 
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-black text-slate-900">My Garden</h1>
-        <span className="text-xs text-slate-400">{designs.length} saved {designs.length === 1 ? "design" : "designs"}</span>
+        <span className="text-xs text-slate-400">
+          {designs.length} saved {designs.length === 1 ? "design" : "designs"}
+        </span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {designs.map((d) => (
           <div key={d.id} className="group bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
             <div className="relative aspect-square bg-slate-50">
-              {d.permanent_url
-                ? <img src={d.permanent_url} alt={d.file_name} className="w-full h-full object-cover"/>
-                : <div className="w-full h-full flex items-center justify-center text-slate-300 text-3xl">🖼</div>
-              }
+              {d.permanent_url ? (
+                <img src={d.permanent_url} alt={d.file_name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-slate-300 text-3xl">🖼</div>
+              )}
               <button
                 onClick={() => handleDelete(d.id)}
                 disabled={deleting === d.id}
                 className="absolute top-2 right-2 w-7 h-7 rounded-full bg-white/90 flex items-center justify-center text-slate-400 hover:text-red-500 hover:bg-white opacity-0 group-hover:opacity-100 transition-all shadow-sm"
               >
-                {deleting === d.id
-                  ? <div className="w-3 h-3 border-2 border-slate-300 border-t-red-500 rounded-full animate-spin"/>
-                  : <TrashIcon/>
-                }
+                {deleting === d.id ? (
+                  <div className="w-3 h-3 border-2 border-slate-300 border-t-red-500 rounded-full animate-spin" />
+                ) : (
+                  <TrashIcon />
+                )}
               </button>
             </div>
             <div className="p-2.5">
@@ -326,47 +444,77 @@ function MyGardenTab({ userId }: { userId: string }) {
 function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [uploadedDesignId, setUploadedDesignId] = useState<string | null>(null);
+  const [currentDesignId, setCurrentDesignId] = useState<string | null>(null);
+  const [savedToGarden, setSavedToGarden] = useState(false);
   const [ownGarden, setOwnGarden] = useState<OwnMatch[]>([]);
-  const [webMatches, setWebMatches] = useState<WebMatch[]>([]);
+  const [searchLinks, setSearchLinks] = useState<SearchLink[]>([]);
   const [isMatchingOwn, setIsMatchingOwn] = useState(false);
   const [isMatchingWeb, setIsMatchingWeb] = useState(false);
 
   const firstName = user.email?.split("@")[0] ?? "there";
   const avatarLetter = firstName[0]?.toUpperCase();
 
+  const handleSaveToGarden = async () => {
+    if (!currentDesignId) return;
+    const { error } = await supabase
+      .from("designs")
+      .update({ saved: true })
+      .eq("id", currentDesignId)
+      .eq("user_id", user.id);
+    if (error) {
+      console.error("[save-to-garden] error:", error);
+      alert("Failed to save: " + error.message);
+      return;
+    }
+    console.log("[save-to-garden] saved design:", currentDesignId);
+    setSavedToGarden(true);
+  };
+
   const handleUploadComplete = async (designId: string, _preview: string, publicUrl: string) => {
     setUploadedDesignId(designId);
+    setCurrentDesignId(designId);
+    setSavedToGarden(false);
     setOwnGarden([]);
-    setWebMatches([]);
+    setSearchLinks([]);
     setIsMatchingOwn(true);
     setIsMatchingWeb(true);
 
-    // Poll own garden
     const pollOwn = async (attempts = 0): Promise<void> => {
-      if (attempts > 12) { setIsMatchingOwn(false); return; }
+      if (attempts > 12) {
+        setIsMatchingOwn(false);
+        return;
+      }
       await new Promise((r) => setTimeout(r, 3000));
       const res = await fetch("/api/match", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ designId, userId: user.id }),
       });
       const data = await res.json();
-      if (data.error === "Design or embedding not found") return pollOwn(attempts + 1);
+      if (data.error === "Design or embedding not found") {
+        return pollOwn(attempts + 1);
+      }
       setOwnGarden(data.ownGarden ?? []);
       setIsMatchingOwn(false);
     };
 
-    // Web search with public URL
     const searchWeb = async () => {
       try {
         await new Promise((r) => setTimeout(r, 2000));
+        console.log("[search-web] calling url:", publicUrl);
         const res = await fetch("/api/search-web", {
-          method: "POST", headers: { "Content-Type": "application/json" },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ imageUrl: publicUrl, designId, userId: user.id }),
         });
         const data = await res.json();
-        setWebMatches(data.matches ?? []);
-      } catch (err) { console.warn("[search-web]", err); }
-      finally { setIsMatchingWeb(false); }
+        console.log("[search-web] result:", data);
+        setSearchLinks(data.searchLinks ?? []);
+      } catch (err) {
+        console.warn("[search-web] error:", err);
+      } finally {
+        setIsMatchingWeb(false);
+      }
     };
 
     pollOwn();
@@ -386,10 +534,15 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
           </div>
           <nav className="px-3 space-y-0.5">
             {navItems.map((item) => (
-              <button key={item.id} onClick={() => setActiveTab(item.id)}
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
                 className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
-                  activeTab === item.id ? "bg-[#9A0458] text-white shadow-sm" : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
-                }`}>
+                  activeTab === item.id
+                    ? "bg-[#9A0458] text-white shadow-sm"
+                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+                }`}
+              >
                 <span className={activeTab === item.id ? "text-white" : "text-slate-400"}>{item.icon}</span>
                 {item.label}
               </button>
@@ -397,12 +550,17 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
           </nav>
         </div>
         <div className="px-3 space-y-1">
-          <button className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-50 transition-colors">
-            <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01"/></svg>
-            Help Center
-          </button>
-          <button onClick={onLogout} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+          <button
+            onClick={onLogout}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+              />
+            </svg>
             Log Out
           </button>
         </div>
@@ -417,41 +575,55 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
             <span className="font-semibold text-[#9A0458]">{activeTab === "garden" ? "My Garden" : "Investigation Lab"}</span>
           </div>
           <div className="flex items-center gap-3">
-            <div className="relative">
-              <input placeholder="Search investigations..." className="pl-7 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-[#9A0458]/20 transition-all"/>
-              <span className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><SearchIcon/></span>
+            <button className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 transition-colors">
+              <BellIcon />
+            </button>
+            <div className="w-8 h-8 rounded-full bg-[#9A0458] text-white text-xs font-bold flex items-center justify-center">
+              {avatarLetter}
             </div>
-            <button className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 transition-colors"><BellIcon/></button>
-            <button className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-50 transition-colors"><HelpIcon/></button>
-            <div className="w-8 h-8 rounded-full bg-[#9A0458] text-white text-xs font-bold flex items-center justify-center">{avatarLetter}</div>
           </div>
         </header>
 
         <main className="flex-1 p-6 max-w-6xl w-full mx-auto">
           {activeTab === "garden" ? (
-            <MyGardenTab userId={user.id}/>
+            <MyGardenTab userId={user.id} />
           ) : (
             <>
               <div className="mb-6">
-                <h1 className="text-2xl font-black text-slate-900 tracking-tight">{getGreeting()}, {firstName}</h1>
+                <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+                  {getGreeting()}, {firstName}
+                </h1>
                 <p className="text-sm text-slate-400 mt-0.5">Let&apos;s uncover the visual DNA of your latest concept.</p>
               </div>
 
               <div className="mb-8">
-                <DropZone userId={user.id} onUploadComplete={handleUploadComplete}/>
+                <DropZone userId={user.id} onUploadComplete={handleUploadComplete} />
               </div>
 
-              {uploadedDesignId ? (
-                isSearching ? (
-                  <div className="text-center py-16 select-none">
-                    <div className="w-8 h-8 border-4 border-slate-100 border-t-[#9A0458] rounded-full animate-spin mx-auto mb-4"/>
-                    <p className="text-sm font-medium text-slate-500">Searching for visual echoes...</p>
-                    <p className="text-xs text-slate-300 mt-1">
-                      {isMatchingOwn && isMatchingWeb ? "Scanning your garden and the web"
-                        : isMatchingOwn ? "Scanning your garden..." : "Searching the web..."}
-                    </p>
-                  </div>
-                ) : (
+              {!uploadedDesignId && (
+                <div className="text-center py-16 select-none">
+                  <div className="text-5xl mb-3">🌿</div>
+                  <p className="text-sm font-medium text-slate-400">Your garden is empty.</p>
+                  <p className="text-xs text-slate-300 mt-1">Drop a design above to start your first forensic search.</p>
+                </div>
+              )}
+
+              {uploadedDesignId && isSearching && (
+                <div className="text-center py-16 select-none">
+                  <div className="w-8 h-8 border-4 border-slate-100 border-t-[#9A0458] rounded-full animate-spin mx-auto mb-4" />
+                  <p className="text-sm font-medium text-slate-500">Searching for visual echoes...</p>
+                  <p className="text-xs text-slate-300 mt-1">
+                    {isMatchingOwn && isMatchingWeb
+                      ? "Scanning your garden and the web"
+                      : isMatchingOwn
+                      ? "Scanning your garden..."
+                      : "Searching the web..."}
+                  </p>
+                </div>
+              )}
+
+              {uploadedDesignId && !isSearching && (
+                <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Your Garden */}
                     <div>
@@ -469,17 +641,30 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
                       ) : (
                         <div className="space-y-3">
                           {ownGarden.map((m) => (
-                            <div key={m.id} className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                            <div
+                              key={m.id}
+                              className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                            >
                               <div className="flex items-center gap-3 p-3">
-                                {m.signedUrl
-                                  ? <img src={m.signedUrl} alt={m.fileName} className="w-16 h-16 object-cover rounded-xl flex-shrink-0"/>
-                                  : <div className="w-16 h-16 rounded-xl bg-slate-100 flex-shrink-0"/>}
+                                {m.signedUrl ? (
+                                  <img src={m.signedUrl} alt={m.fileName} className="w-16 h-16 object-cover rounded-xl flex-shrink-0" />
+                                ) : (
+                                  <div className="w-16 h-16 rounded-xl bg-slate-100 flex-shrink-0" />
+                                )}
                                 <div className="flex-1 min-w-0">
                                   <p className="text-[13px] font-semibold text-slate-800 leading-tight truncate">{m.fileName}</p>
                                   <p className="text-[11px] text-slate-400 mt-0.5">{new Date(m.createdAt).toLocaleDateString()}</p>
-                                  <span className={`inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${levelColors[m.level as SimilarityLevel] ?? "bg-slate-100 text-slate-500"}`}>{m.level}</span>
+                                  <span
+                                    className={`inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                      levelColors[m.level as SimilarityLevel] ?? "bg-slate-100 text-slate-500"
+                                    }`}
+                                  >
+                                    {m.level}
+                                  </span>
                                 </div>
-                                <span className={`text-xs font-bold px-2.5 py-1.5 rounded-full flex-shrink-0 ${scoreColor(m.similarity)}`}>{m.similarity}%</span>
+                                <span className={`text-xs font-bold px-2.5 py-1.5 rounded-full flex-shrink-0 ${scoreColor(m.similarity)}`}>
+                                  {m.similarity}%
+                                </span>
                               </div>
                             </div>
                           ))}
@@ -494,48 +679,70 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
                           <span className="text-base">🧭</span>
                           <h2 className="text-sm font-bold text-slate-800">Others&apos; Garden</h2>
                         </div>
-                        <span className="text-xs text-slate-400">{webMatches.length} matches</span>
+                        <span className="text-xs text-slate-400">{searchLinks.length} leads</span>
                       </div>
-                      {webMatches.length === 0 ? (
+                      {searchLinks.length === 0 ? (
                         <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center">
-                          <p className="text-sm text-slate-400">No visual echoes found on the web.</p>
+                          <p className="text-sm text-slate-400">No visual leads found for this design.</p>
                         </div>
                       ) : (
                         <div className="space-y-3">
-                          {webMatches.map((m, i) => (
-                            <a key={i} href={m.url} target="_blank" rel="noopener noreferrer"
-                              className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow flex items-center gap-3 p-3 group">
-                              <img src={m.thumbnailUrl} alt={m.title}
-                                className="w-16 h-16 object-cover rounded-xl flex-shrink-0 bg-slate-100"
-                                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}/>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[13px] font-semibold text-slate-800 leading-tight truncate group-hover:text-[#9A0458] transition-colors">{m.title}</p>
-                                <p className="text-[11px] text-slate-400 mt-0.5 truncate">{m.source}</p>
-                                <span className={`inline-block mt-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${levelColors[m.level as SimilarityLevel] ?? "bg-slate-100 text-slate-500"}`}>{m.level}</span>
+                          {searchLinks.map((link, i) => (
+                            <div
+                              key={i}
+                              className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-shadow p-4"
+                            >
+                              <p className="text-[13px] font-semibold text-slate-800 leading-tight mb-3">
+                                &ldquo;{link.title}&rdquo;
+                              </p>
+                              <div className="flex gap-2">
+                                <a
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 text-center px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-lg transition-colors"
+                                >
+                                  Search Google Images
+                                </a>
+                                <a
+                                  href={link.pinterestUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex-1 text-center px-3 py-2 bg-[#9A0458]/8 hover:bg-[#9A0458]/15 text-[#9A0458] text-xs font-medium rounded-lg transition-colors"
+                                >
+                                  Search Pinterest
+                                </a>
                               </div>
-                              <span className={`text-xs font-bold px-2.5 py-1.5 rounded-full flex-shrink-0 ${scoreColor(m.similarity)}`}>{m.similarity}%</span>
-                            </a>
+                            </div>
                           ))}
                         </div>
                       )}
                     </div>
                   </div>
-                )
-              ) : (
-                <div className="text-center py-16 select-none">
-                  <div className="text-5xl mb-3">🌿</div>
-                  <p className="text-sm font-medium text-slate-400">Your garden is empty.</p>
-                  <p className="text-xs text-slate-300 mt-1">Drop a design above to start your first forensic search.</p>
-                </div>
+
+                  {/* Save to garden prompt */}
+                  {!savedToGarden ? (
+                    <div className="mt-6 flex items-center justify-center gap-4 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                      <p className="text-sm text-slate-600">Want to save this design to your garden?</p>
+                      <button
+                        onClick={handleSaveToGarden}
+                        className="px-4 py-2 bg-[#9A0458] text-white text-sm font-semibold rounded-xl hover:bg-[#7d0348] transition-colors whitespace-nowrap"
+                      >
+                        Save to Garden
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mt-6 flex items-center justify-center gap-2 p-4 bg-emerald-50 rounded-2xl border border-emerald-100">
+                      <span className="text-emerald-600 text-sm font-semibold">✓ Saved to your garden</span>
+                    </div>
+                  )}
+                </>
               )}
             </>
           )}
         </main>
       </div>
 
-      <button className="fixed bottom-6 right-6 bg-[#9A0458] text-white px-4 py-3 rounded-2xl shadow-lg shadow-[#9A0458]/30 flex items-center gap-2 text-sm font-semibold hover:bg-[#7d0348] transition-colors z-20">
-        <PlusIcon/>New Analysis
-      </button>
     </div>
   );
 }
@@ -552,10 +759,12 @@ export default function Home() {
       setIsLoading(false);
     };
     getInitialSession();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, session) => {
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setIsLoading(false);
     });
+
     return () => subscription.unsubscribe();
   }, []);
 
@@ -566,19 +775,28 @@ export default function Home() {
     });
   };
 
-  if (isLoading) return (
-    <main className="min-h-screen bg-white flex flex-col items-center justify-center antialiased">
-      <div className="w-10 h-10 border-4 border-slate-100 border-t-[#9A0458] rounded-full animate-spin mb-2"/>
-      <p className="text-slate-400 text-xs font-medium">Carregando laboratório...</p>
-    </main>
-  );
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+  };
 
-  if (user) return <Dashboard user={user} onLogout={async () => { await supabase.auth.signOut(); setUser(null); }}/>;
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-white flex flex-col items-center justify-center antialiased">
+        <div className="w-10 h-10 border-4 border-slate-100 border-t-[#9A0458] rounded-full animate-spin mb-2" />
+        <p className="text-slate-400 text-xs font-medium">Carregando laboratório...</p>
+      </main>
+    );
+  }
+
+  if (user) return <Dashboard user={user} onLogout={handleLogout} />;
 
   return (
     <main className="min-h-screen bg-white flex flex-col md:flex-row antialiased overflow-hidden">
-      <div className="w-full md:w-1/2 p-12 md:p-24 flex flex-col justify-end relative min-h-[45vh] md:min-h-screen bg-cover bg-center rounded-none md:rounded-r-[24px]"
-        style={{ backgroundImage: `url('/EchoGarden.png')` }}>
+      <div
+        className="w-full md:w-1/2 p-12 md:p-24 flex flex-col justify-end relative min-h-[45vh] md:min-h-screen bg-cover bg-center rounded-none md:rounded-r-[24px]"
+        style={{ backgroundImage: `url('/EchoGarden.png')` }}
+      >
         <div className="relative z-10 text-white select-none hidden md:block">
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-2 drop-shadow-sm">EchoGarden</h1>
           <p className="text-white/90 text-sm md:text-lg font-medium tracking-wide">Empathetic Forensics & Design Analysis</p>
@@ -588,9 +806,12 @@ export default function Home() {
         <div className="w-full max-w-sm text-center">
           <h2 className="text-4xl font-bold text-black tracking-tight mb-3">Entrar</h2>
           <p className="text-slate-600 text-sm mb-8 max-w-[280px] mx-auto">Acesse sua conta para iniciar uma busca forense visual</p>
-          <button onClick={handleLogin}
-            className="w-full flex items-center justify-center bg-white hover:bg-slate-50 text-slate-800 font-medium py-3.5 px-5 border border-slate-200 rounded-xl transition-all duration-200 active:scale-[0.99] shadow-sm text-sm cursor-pointer">
-            <GoogleIcon/>Entrar com o Google
+          <button
+            onClick={handleLogin}
+            className="w-full flex items-center justify-center bg-white hover:bg-slate-50 text-slate-800 font-medium py-3.5 px-5 border border-slate-200 rounded-xl transition-all duration-200 active:scale-[0.99] shadow-sm text-sm cursor-pointer"
+          >
+            <GoogleIcon />
+            Entrar com o Google
           </button>
         </div>
       </div>

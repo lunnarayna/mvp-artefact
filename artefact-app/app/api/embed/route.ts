@@ -7,11 +7,7 @@ let extractor: any = null;
 async function getExtractor() {
   if (!extractor) {
     const { pipeline } = await import("@xenova/transformers");
-    extractor = await pipeline(
-      "image-feature-extraction",
-      "Xenova/clip-vit-base-patch32",
-      { revision: "main" }
-    );
+    extractor = await pipeline("image-feature-extraction", "Xenova/clip-vit-base-patch32", { revision: "main" });
   }
   return extractor;
 }
@@ -24,52 +20,38 @@ export async function POST(request: NextRequest) {
     );
 
     const { designId, imageBase64, mimeType, userId } = await request.json();
-
     if (!designId || !imageBase64 || !userId) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
-    // Confirm design belongs to user
     const { data: design, error: designError } = await supabase
-      .from("designs")
-      .select("id")
-      .eq("id", designId)
-      .eq("user_id", userId)
-      .single();
+      .from("designs").select("id, storage_path").eq("id", designId).eq("user_id", userId).single();
 
-    if (designError || !design) {
-      return NextResponse.json({ error: "Design not found" }, { status: 404 });
-    }
+    if (designError || !design) return NextResponse.json({ error: "Design not found" }, { status: 404 });
+
+    const permanentUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/designs/${design.storage_path}`;
 
     console.log("[embed] loading model...");
     const ext = await getExtractor();
     const { RawImage } = await import("@xenova/transformers");
-
-    // Convert base64 → Uint8Array → RawImage via sharp/jimp under the hood
     const buffer = Buffer.from(imageBase64, "base64");
     const uint8 = new Uint8Array(buffer);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const image = await (RawImage as any).fromBlob(new Blob([uint8], { type: mimeType ?? "image/jpeg" }));
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const output = await ext(image, { pooling: "mean", normalize: true }) as any;
+    const output = await ext(image, { pooling: "mean", normalize: true } as Record<string, unknown>) as any;
     const embedding: number[] = Array.from(output.data as Float32Array);
 
     console.log("[embed] embedding ready, dimensions:", embedding.length);
 
     const { error: updateError } = await supabase
       .from("designs")
-      .update({ embedding })
+      .update({ embedding, permanent_url: permanentUrl })
       .eq("id", designId);
 
     if (updateError) throw updateError;
-
     return NextResponse.json({ success: true, dimensions: embedding.length });
   } catch (err) {
     console.error("[embed] error:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Internal error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: err instanceof Error ? err.message : "Internal error" }, { status: 500 });
   }
 }

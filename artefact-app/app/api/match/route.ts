@@ -9,6 +9,7 @@ export async function POST(request: NextRequest) {
     );
 
     const { designId, userId } = await request.json();
+
     if (!designId || !userId) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
@@ -37,21 +38,35 @@ export async function POST(request: NextRequest) {
       (m: { user_id: string }) => m.user_id === userId
     );
 
-    const ownGarden = ownDesigns.map((m: {
-      id: string; file_name: string; permanent_url: string;
-      similarity: number; created_at: string;
-    }) => {
-      const similarity = Math.round(m.similarity * 100);
-      const level = similarity >= 85 ? "VERY SIMILAR" : similarity >= 70 ? "MODERATELY SIMILAR" : "DISTANTLY SIMILAR";
-      return {
-        id: m.id,
-        fileName: m.file_name,
-        imageUrl: m.permanent_url,
-        similarity,
-        level,
-        createdAt: m.created_at,
-      };
-    });
+    const ownGarden = await Promise.all(
+      ownDesigns.map(async (m: {
+        id: string;
+        user_id: string;
+        file_name: string;
+        storage_path: string;
+        similarity: number;
+        created_at: string;
+      }) => {
+        const { data: urlData } = await supabase.storage
+          .from("designs")
+          .createSignedUrl(m.storage_path, 60 * 60);
+
+        const similarity = Math.round(m.similarity * 100);
+        const level =
+          similarity >= 85 ? "VERY SIMILAR" :
+          similarity >= 70 ? "MODERATELY SIMILAR" :
+          "DISTANTLY SIMILAR";
+
+        return {
+          id: m.id,
+          fileName: m.file_name,
+          signedUrl: urlData?.signedUrl ?? null,
+          similarity,
+          level,
+          createdAt: m.created_at,
+        };
+      })
+    );
 
     return NextResponse.json({ ownGarden });
   } catch (err) {
