@@ -440,6 +440,107 @@ function MyGardenTab({ userId }: { userId: string }) {
   );
 }
 
+// ── Tutorial ───────────────────────────────────────────────────────────────
+const TUTORIAL_STEPS = [
+  {
+    emoji: "🌿",
+    title: "Bem-vindo ao EchoGarden",
+    body: "O EchoGarden revela a identidade visual dos seus designs. Faça o upload de uma tela ou conceito e descubra o que ele tem em comum com o que ja foi criado antes, pelo mundo afora ou pelo seu proprio historico.",
+  },
+  {
+    emoji: "📤",
+    title: "Envie um design para analisar",
+    body: "Arraste e solte qualquer imagem PNG, JPG ou WebP de ate 10 MB na area de upload. Clique em 'Start Analysis' para confirmar e o EchoGarden comeca a trabalhar na analise completa.",
+  },
+  {
+    emoji: "🌱",
+    title: "Your Garden: seus proprios ecos",
+    body: "Aqui voce ve quais dos designs que ja enviou anteriormente se parecem com o atual. Quanto maior a porcentagem, mais proximo o design esta dos que voce ja enviou.",
+  },
+  {
+    emoji: "🧭",
+    title: "Others Garden: inspiracoes da web",
+    body: "A IA descreve o estilo visual do seu design e gera links de busca prontos para o Google Imagens e Pinterest. Explore referencias visuais similares com um clique, sem sair da plataforma.",
+  },
+  {
+    emoji: "💾",
+    title: "Salve e construa seu acervo",
+    body: "Clique em 'Save to Garden' para guardar o design no seu acervo pessoal. Apenas os designs salvos sao usados nas comparacoes futuras, entao voce decide o que faz parte do seu jardim.",
+  },
+];
+
+function TutorialModal({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState(0);
+  const current = TUTORIAL_STEPS[step];
+  const isLast = step === TUTORIAL_STEPS.length - 1;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+    >
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden">
+        {/* Progress bar */}
+        <div className="h-1 bg-slate-100">
+          <div
+            className="h-full bg-[#9A0458] transition-all duration-300"
+            style={{ width: `${((step + 1) / TUTORIAL_STEPS.length) * 100}%` }}
+          />
+        </div>
+
+        <div className="p-8">
+          {/* Step indicator */}
+          <div className="flex gap-1.5 mb-6">
+            {TUTORIAL_STEPS.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setStep(i)}
+                className={`h-1.5 rounded-full transition-all duration-200 ${
+                  i === step ? "bg-[#9A0458] w-6" : "bg-slate-200 w-3 hover:bg-slate-300"
+                }`}
+              />
+            ))}
+          </div>
+
+          {/* Content */}
+          <div className="text-5xl mb-5 select-none">{current.emoji}</div>
+          <h2 className="text-xl font-black text-slate-900 mb-3 leading-snug">{current.title}</h2>
+          <p className="text-sm text-slate-500 leading-relaxed">{current.body}</p>
+        </div>
+
+        {/* Footer */}
+        <div className="px-8 pb-8 flex items-center justify-between">
+          <button
+            onClick={() => setStep((s) => Math.max(0, s - 1))}
+            disabled={step === 0}
+            className="text-sm text-slate-400 hover:text-slate-600 disabled:opacity-0 transition-colors"
+          >
+            ← Anterior
+          </button>
+          <span className="text-[11px] text-slate-300 font-medium">
+            {step + 1} / {TUTORIAL_STEPS.length}
+          </span>
+          {isLast ? (
+            <button
+              onClick={onClose}
+              className="px-5 py-2.5 bg-[#9A0458] text-white text-sm font-semibold rounded-xl hover:bg-[#7d0348] transition-colors"
+            >
+              Começar →
+            </button>
+          ) : (
+            <button
+              onClick={() => setStep((s) => s + 1)}
+              className="px-5 py-2.5 bg-[#9A0458] text-white text-sm font-semibold rounded-xl hover:bg-[#7d0348] transition-colors"
+            >
+              Próximo →
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Dashboard ──────────────────────────────────────────────────────────────
 function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -450,6 +551,19 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [searchLinks, setSearchLinks] = useState<SearchLink[]>([]);
   const [isMatchingOwn, setIsMatchingOwn] = useState(false);
   const [isMatchingWeb, setIsMatchingWeb] = useState(false);
+  const [webSearchError, setWebSearchError] = useState<"quota" | "error" | null>(null);
+  const [currentPublicUrl, setCurrentPublicUrl] = useState<string | null>(null);
+  const [webDescription, setWebDescription] = useState<string | null>(null);
+  const [showTutorial, setShowTutorial] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return !localStorage.getItem("echogarden_tutorial_seen");
+  });
+
+  const openTutorial = () => setShowTutorial(true);
+  const closeTutorial = () => {
+    localStorage.setItem("echogarden_tutorial_seen", "1");
+    setShowTutorial(false);
+  };
 
   const firstName = user.email?.split("@")[0] ?? "there";
   const avatarLetter = firstName[0]?.toUpperCase();
@@ -473,9 +587,12 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
   const handleUploadComplete = async (designId: string, _preview: string, publicUrl: string) => {
     setUploadedDesignId(designId);
     setCurrentDesignId(designId);
+    setCurrentPublicUrl(publicUrl);
     setSavedToGarden(false);
     setOwnGarden([]);
     setSearchLinks([]);
+    setWebSearchError(null);
+    setWebDescription(null);
     setIsMatchingOwn(true);
     setIsMatchingWeb(true);
 
@@ -498,27 +615,37 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
       setIsMatchingOwn(false);
     };
 
-    const searchWeb = async () => {
-      try {
-        await new Promise((r) => setTimeout(r, 2000));
-        console.log("[search-web] calling url:", publicUrl);
-        const res = await fetch("/api/search-web", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ imageUrl: publicUrl, designId, userId: user.id }),
-        });
-        const data = await res.json();
-        console.log("[search-web] result:", data);
-        setSearchLinks(data.searchLinks ?? []);
-      } catch (err) {
-        console.warn("[search-web] error:", err);
-      } finally {
-        setIsMatchingWeb(false);
-      }
-    };
-
     pollOwn();
-    searchWeb();
+    searchWeb(publicUrl, designId);
+  };
+
+  const searchWeb = async (imageUrl: string, dId: string) => {
+    setIsMatchingWeb(true);
+    setWebSearchError(null);
+    setWebDescription(null);
+    try {
+      console.log("[search-web] calling url:", imageUrl);
+      const res = await fetch("/api/search-web", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageUrl, designId: dId, userId: user.id }),
+      });
+      const data = await res.json();
+      console.log("[search-web] result:", data);
+      if (res.status === 429) {
+        setWebSearchError("quota");
+      } else if (!res.ok) {
+        setWebSearchError("error");
+      } else {
+        setWebDescription(data.description ?? null);
+        setSearchLinks(data.searchLinks ?? []);
+      }
+    } catch (err) {
+      console.warn("[search-web] error:", err);
+      setWebSearchError("error");
+    } finally {
+      setIsMatchingWeb(false);
+    }
   };
 
   const isSearching = isMatchingOwn || isMatchingWeb;
@@ -550,6 +677,16 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
           </nav>
         </div>
         <div className="px-3 space-y-1">
+          <button
+            onClick={openTutorial}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors"
+          >
+            <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3m.08 4h.01"/>
+            </svg>
+            Tutorial
+          </button>
           <button
             onClick={onLogout}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
@@ -681,12 +818,38 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
                         </div>
                         <span className="text-xs text-slate-400">{searchLinks.length} leads</span>
                       </div>
-                      {searchLinks.length === 0 ? (
+                      {webSearchError ? (
+                        <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center space-y-3">
+                          {webSearchError === "quota" ? (
+                            <>
+                              <p className="text-sm font-medium text-amber-600">Limite da API Gemini atingido.</p>
+                              <p className="text-xs text-slate-400">A cota gratuita foi esgotada. Tente novamente em alguns minutos.</p>
+                            </>
+                          ) : (
+                            <p className="text-sm text-slate-400">Erro ao buscar inspirações visuais.</p>
+                          )}
+                          {currentDesignId && currentPublicUrl && (
+                            <button
+                              onClick={() => searchWeb(currentPublicUrl!, currentDesignId!)}
+                              disabled={isMatchingWeb}
+                              className="px-4 py-2 bg-[#9A0458] text-white text-xs font-semibold rounded-xl hover:bg-[#7d0348] transition-colors disabled:opacity-50"
+                            >
+                              {isMatchingWeb ? "Buscando..." : "Tentar novamente"}
+                            </button>
+                          )}
+                        </div>
+                      ) : searchLinks.length === 0 ? (
                         <div className="bg-white rounded-2xl border border-slate-100 p-6 text-center">
-                          <p className="text-sm text-slate-400">No visual leads found for this design.</p>
+                          <p className="text-sm text-slate-400">Nenhuma inspiracao visual encontrada para este design.</p>
                         </div>
                       ) : (
                         <div className="space-y-3">
+                          {webDescription && (
+                            <div className="bg-white rounded-2xl border border-slate-100 p-4">
+                              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">Sobre este design</p>
+                              <p className="text-[13px] text-slate-600 leading-relaxed">{webDescription}</p>
+                            </div>
+                          )}
                           {searchLinks.map((link, i) => (
                             <div
                               key={i}
@@ -702,7 +865,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
                                   rel="noopener noreferrer"
                                   className="flex-1 text-center px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium rounded-lg transition-colors"
                                 >
-                                  Search Google Images
+                                  Buscar no Google Imagens
                                 </a>
                                 <a
                                   href={link.pinterestUrl}
@@ -710,7 +873,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
                                   rel="noopener noreferrer"
                                   className="flex-1 text-center px-3 py-2 bg-[#9A0458]/8 hover:bg-[#9A0458]/15 text-[#9A0458] text-xs font-medium rounded-lg transition-colors"
                                 >
-                                  Search Pinterest
+                                  Buscar no Pinterest
                                 </a>
                               </div>
                             </div>
@@ -743,6 +906,7 @@ function Dashboard({ user, onLogout }: { user: User; onLogout: () => void }) {
         </main>
       </div>
 
+      {showTutorial && <TutorialModal onClose={closeTutorial} />}
     </div>
   );
 }

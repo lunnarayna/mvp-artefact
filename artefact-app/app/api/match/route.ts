@@ -34,8 +34,25 @@ export async function POST(request: NextRequest) {
 
     if (matchError) throw matchError;
 
+    // Only match against designs the user explicitly saved to their garden,
+    // and exclude the design being analysed right now.
+    const candidateIds = (matches ?? [])
+      .filter((m: { user_id: string; id: string }) => m.user_id === userId && m.id !== designId)
+      .map((m: { id: string }) => m.id);
+
+    let savedSet = new Set<string>();
+    if (candidateIds.length > 0) {
+      const { data: savedRows } = await supabase
+        .from("designs")
+        .select("id")
+        .in("id", candidateIds)
+        .eq("saved", true);
+      savedSet = new Set((savedRows ?? []).map((r: { id: string }) => r.id));
+    }
+
     const ownDesigns = (matches ?? []).filter(
-      (m: { user_id: string }) => m.user_id === userId
+      (m: { user_id: string; id: string }) =>
+        m.user_id === userId && m.id !== designId && savedSet.has(m.id)
     );
 
     const ownGarden = await Promise.all(
