@@ -367,6 +367,7 @@ function MyGardenTab({ userId }: { userId: string }) {
   }, [userId]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
 

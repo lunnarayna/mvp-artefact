@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
     const uint8 = new Uint8Array(buffer);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const image = await (RawImage as any).fromBlob(new Blob([uint8], { type: mimeType ?? "image/jpeg" }));
-    const output = await ext(image, { pooling: "mean", normalize: true } as Record<string, unknown>) as any;
+    const output = await ext(image, { pooling: "mean", normalize: true } as Record<string, unknown>) as { data: Float32Array };
     const embedding: number[] = Array.from(output.data as Float32Array);
 
     console.log("[embed] embedding ready, dimensions:", embedding.length);
