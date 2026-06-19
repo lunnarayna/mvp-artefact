@@ -1,12 +1,16 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 
+export const maxDuration = 60;
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let extractor: any = null;
 
 async function getExtractor() {
   if (!extractor) {
-    const { pipeline } = await import("@xenova/transformers");
+    const { pipeline, env } = await import("@xenova/transformers");
+    env.cacheDir = "/tmp/.cache/transformers";
+    env.allowRemoteModels = true;
     extractor = await pipeline("image-feature-extraction", "Xenova/clip-vit-base-patch32", { revision: "main" });
   }
   return extractor;
